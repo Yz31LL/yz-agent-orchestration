@@ -13,6 +13,9 @@ so a relative path would not resolve.
 > user's as `flow ask` instead of asking in prose, then stop at that step: the
 > answer arrives as a message. Never act on another system (a tracker, a live
 > site, a deploy) before the ask is answered Yes.
+> Always pass `--why` on `flow ask`: one plain sentence on why you need this answer now (what it unblocks,
+> what each choice leads to). The user reads it under the question everywhere the ask shows; an ask without
+> one prints a warning, and the dashboard can then only say which flow and step it follows.
 > When a piece of work is finished, record its output: a result screenshot (`flow result`), a short summary with the commits
 > (`flow summary`), and manual test steps with a screenshot each (`flow test-step`). The user sees that first when they open the flow.
 > Every flow needs a visual, and a flow with neither a screenshot nor a diagram is unfinished: for UI work a result
@@ -43,7 +46,7 @@ For example (`--by` names the agent; `FACTORY_BY` does the same):
 ```
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow new abc-123-login "Fix the login redirect" --tickets ABC-123 --env dev --by Master
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow step abc-123-login "Write the failing test" --status doing --by Master
-node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow ask abc-123-login "Deploy the fix to dev?" --yes "Deploy it" --no "Leave it on the branch" --by Master
+node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow ask abc-123-login "Deploy the fix to dev?" --why "The test passes on the branch; dev is where QA can try it" --yes "Deploy it" --no "Leave it on the branch" --by Master
 ```
 
 And once the fix works, its output (the screenshots are files the agent saved, for example with the Playwright screenshot tool):
@@ -78,6 +81,6 @@ set a box's shape; `: label` names the arrow into a box):
 node C:/path/to/yz-agent-orchestration/tools/factory.mjs flow diagram acme-report "[actor] Scheduler -> Report job: every night; Report job -> [store] Reports: saves; Report job -> [actor] Team: emails" --by Master
 ```
 
-What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
+What the user sees: the flow as a card on the Flows page (`#/flows`), and each `flow ask` in **Waiting on you** with your `--why` under the question and Yes and No; the answer is sent back to the agent as a message. An opened flow lands on **Output**: the result screenshot (or your diagram, or with neither a summary chart the dashboard draws from your steps), the summary with its commits, and the numbered test steps. If the user presses **Request test steps**, a message arrives asking for those steps: drive the app, then record each step with `flow test-step`. **Request visuals** (a flow with no screenshot and no diagram) asks for a screenshot or a diagram first.
 
 The full command list is in the README, under "Agents writing flows".

@@ -14,7 +14,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.dirname(HERE)
 process.env.FACTORY_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-cli-test-'))
 const F = await import('../flows.mjs')
-const { runFlow } = await import('../tools/flow-cli.mjs')
+const { NO_WHY, runFlow } = await import('../tools/flow-cli.mjs')
 /** Files the tests hand to the CLI live outside the data root. */
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-cli-files-'))
 after(() => {
@@ -82,7 +82,8 @@ test('new refuses an id that already exists', () => {
 test('step numbers nodes n1, n2 and ask waits on the user', () => {
   assert.deepEqual(run('step', 'dark', 'Add tokens', '--why', 'x'), { out: 'dark n1: Add tokens', code: 0 })
   assert.deepEqual(run('check', 'dark', 'Toggle works on dev', '--env', 'dev'), { out: 'dark n2: Toggle works on dev', code: 0 })
-  assert.deepEqual(run('ask', 'dark', 'Turn it on?', '--yes', 'a', '--no', 'b'), { out: 'dark n3: waiting on the user', code: 0 })
+  // an ask with no --why still goes in; the agent gets a warning on stderr (ask-why.test.mjs)
+  assert.deepEqual(run('ask', 'dark', 'Turn it on?', '--yes', 'a', '--no', 'b'), { out: 'dark n3: waiting on the user', code: 0, err: NO_WHY })
   const flow = F.readFlow('dark')
   assert.equal(node(flow, 'n1').why, 'x')
   assert.equal(node(flow, 'n2').type, 'check')

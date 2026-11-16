@@ -64,7 +64,8 @@ const SHOT_ERROR = 'a shot must be an existing png, jpg, jpeg, webp, gif, webm o
 export const USAGE = `usage: flow <command>
   new <id> "<title>" [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
   step|check <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
-  ask <flow> "<question>" [--yes "..."] [--no "..."] [--text] [--why "..."] [--after n2]
+  ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
+   always pass --why: the user sees it under the question everywhere the ask shows (an ask without one warns)
   note <flow> "<text>" [--after n2]
   status <flow> <node> <todo|doing|done|blocked|skipped>
   evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
@@ -109,6 +110,15 @@ export const NO_NAME = 'say who you are with --by <your dashboard label> (or set
 const fail = (out) => ({ out, code: 1 })
 const ok = (out) => ({ out, code: 0 })
 
+/**
+ * The dashboard shows why the user is asked under every question (flows.mjs askReason). An ask with no
+ * why still goes in (older briefs and `decide` callers must keep working), but the agent is told on
+ * stderr, next to a good result, so the next ask carries one. A warning, never a refusal.
+ */
+export const NO_WHY = 'Warning: no --why. The user sees the reason under the question; without one the dashboard ' +
+  'can only say which flow and step the ask follows. Next time add --why "<one plain sentence: why you need this answer>".'
+const noWhy = node => node?.type === 'ask' && !isText(node.why)
+
 /** `a, b` → ['a', 'b']; undefined stays undefined so the store applies its default. */
 const list = (v) => v === undefined ? undefined : String(v).split(',').map(s => s.trim()).filter(Boolean)
 const tickets = (v) => list(v)?.map(t => t.toUpperCase())
@@ -142,7 +152,8 @@ function addCmd(type) {
       yes: f.yes, no: f.no, kind: type === 'ask' ? (f.text ? 'text' : 'yesno') : undefined,
     })
     writeFlow(flow)
-    return ok(`${flow.id} ${node.id}: ${type === 'ask' ? 'waiting on the user' : node.title}`)
+    const done = ok(`${flow.id} ${node.id}: ${type === 'ask' ? 'waiting on the user' : node.title}`)
+    return noWhy(node) ? { ...done, err: NO_WHY } : done
   }
 }
 
@@ -241,7 +252,11 @@ function cmdWrite(f, { by, cwd }) {
   const flow = mergeKeepingAnswers(incoming, readFlow(incoming.id))
   flow.createdAt ||= new Date().toISOString()
   writeFlow(flow)
-  return ok(`Flow ${flow.id} written`)
+  const bare = (incoming.nodes || []).filter(noWhy).map(n => n.id)
+  const written = ok(`Flow ${flow.id} written`)
+  return bare.length
+    ? { ...written, err: `Warning: no why on ask ${bare.join(', ')}. The user sees the reason under the question: give each ask a "why", one plain sentence.` }
+    : written
 }
 
 function cmdShow(f) {

@@ -6,7 +6,7 @@
 //   node tools/factory.mjs mark ABC-123 reviewed --verdict check --note "what is left"
 //   node tools/factory.mjs mark ABC-123 needs-review|no-code|not-codebase [--note "..."]
 //   node tools/factory.mjs flow <command> ...            (see tools/flow-cli.mjs)
-//   node tools/factory.mjs decide --question "..." [--ticket ABC-123] [--yes "..."] [--no "..."] [--text] [--flow <id>]
+//   node tools/factory.mjs decide --question "..." --why "..." [--ticket ABC-123] [--yes "..."] [--no "..."] [--text] [--flow <id>]
 //   node tools/factory.mjs show ABC-123
 //   node tools/factory.mjs term "<word>" "<plain explanation>" [--more "..."] [--flow <id>]   (see tools/term-cli.mjs)
 //   node tools/factory.mjs pr-pin                         the person sets the send PIN, typed in a terminal (tools/pr-pin.mjs)
@@ -41,7 +41,7 @@ function decide() {
   if (!by) return { out: NO_NAME, code: 1 }
   if (!f.question) return { out: 'A decision needs a question.', code: 1 }
   const opts = []
-  for (const k of ['yes', 'no']) if (f[k] !== undefined) opts.push('--' + k, f[k])
+  for (const k of ['yes', 'no', 'why']) if (f[k] !== undefined) opts.push('--' + k, f[k])
   if (f.text) opts.push('--text')
   if (f.flow) return runFlow(['ask', f.flow, f.question, ...opts], ctx)
 
@@ -50,7 +50,7 @@ function decide() {
   const made = runFlow(['new', id, f.question.slice(0, 80), ...(f.ticket ? ['--tickets', f.ticket] : [])], ctx)
   if (made.code) return made
   const asked = runFlow(['ask', id, f.question, ...opts], ctx)
-  return { out: `${made.out}\n${asked.out}`, code: asked.code }
+  return { out: `${made.out}\n${asked.out}`, code: asked.code, err: asked.err }
 }
 
 try {
@@ -75,7 +75,7 @@ try {
   } else {
     console.log(`usage:
   mark <ID> <${REVIEW.join('|')}> [--verdict ${VERDICT.join('|')}] [--note "..."]
-  decide --question "..." [--ticket <ID>] [--yes "..."] [--no "..."] [--text] [--flow <id>]
+  decide --question "..." --why "..." [--ticket <ID>] [--yes "..."] [--no "..."] [--text] [--flow <id>]
   flow <command> ...    run flow with no command for its usage
   term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [--more "..."] [--flow <id>]
   show <ID>

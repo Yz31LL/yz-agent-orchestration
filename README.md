@@ -363,6 +363,9 @@ file per flow in `data/flows/`, written with the `flow` commands below. Top to b
 
 - **Waiting on you**, one strip across all flows: every unanswered ask, newest first, one line each (agent,
   flow title, the question) with Yes and No (or a text box) inline and a link to show it in its flow.
+  Under each question is **why** it is asked: the agent's `--why`, or, when it gave none, a fainter line
+  saying which flow and step the ask follows. The same `Why?` line sits under the question wherever an ask
+  shows: the opened flow's Story, Status and node drawer, the chart's tooltip, and the alert toast.
   Answering here is the same as answering on the node. While a flow is open, its own asks leave the strip
   (its Story and Status ask them), and the strip disappears when nothing is left in it. On the Flows page no
   `N asks waiting` toast is raised: the header dot and the strip already say it.
@@ -527,6 +530,9 @@ Every agent that works in the repo gets the same brief. Paste this paragraph int
 > user's as `flow ask` instead of asking in prose, then stop at that step: the
 > answer arrives as a message. Never act on another system (a tracker, a live
 > site, a deploy) before the ask is answered Yes.
+> Always pass `--why` on `flow ask`: one plain sentence on why you need this answer now (what it unblocks,
+> what each choice leads to). The user reads it under the question everywhere the ask shows; an ask without
+> one prints a warning, and the dashboard can then only say which flow and step it follows.
 > When a piece of work is finished, record its output: a result screenshot (`flow result`), a short summary
 > with the commits (`flow summary`), and manual test steps with a screenshot each (`flow test-step`).
 > Every flow needs a visual, and a flow with neither a screenshot nor a diagram is unfinished: for UI work a result
@@ -558,7 +564,7 @@ and the Output commands refuse to run without one.
 flow new <id> "<title>" [--tickets ABC-1,ABC-2] [--env dev] [--why "..."]
 flow step <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
 flow check <flow> "<title>" [same options]
-flow ask <flow> "<question>" [--yes "..."] [--no "..."] [--text] [--why "..."] [--after n2]
+flow ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
 flow note <flow> "<text>" [--after n2]
 flow status <flow> <node> <todo|doing|done|blocked|skipped>
 flow evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
@@ -580,6 +586,11 @@ term "<word>" "<plain explanation, 1 or 2 sentences, at most 300 characters>" [-
 
 `say` and `say-clear` write the story (see "Plain story, marked words, and the glossary" above); `term`
 defines a word the agent marked, for free, in `data/glossary.json`.
+
+`ask` takes `--why`, the reason the page shows under the question. It is not required, so older briefs and
+`decide` keep working, but an ask without one still goes in and prints a warning on stderr (exit code 0), and
+`write` warns about each ask in the file with no `why`, by id. Without a why the page can only say
+`Part of <flow title>, after: <the step the ask follows>`, drawn fainter.
 
 The output commands fill the **Output** storyboard, the flow's `output` block. `result` appends a screenshot of the
 result, copied as `<flow>/out-<name>`; with `--before` it is a screenshot of how it looked before the change
@@ -646,7 +657,7 @@ The other commands, from any shell:
 ```
 node tools/factory.mjs mark ABC-123 reviewed --verdict check --note "what is left"
 node tools/factory.mjs mark ABC-123 needs-review|no-code|not-codebase
-node tools/factory.mjs decide --ticket ABC-123 --question "..." --yes "..." --no "..."
+node tools/factory.mjs decide --ticket ABC-123 --question "..." --why "..." --yes "..." --no "..."
 node tools/factory.mjs show ABC-123
 ```
 
