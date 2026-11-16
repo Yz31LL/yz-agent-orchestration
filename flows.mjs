@@ -20,7 +20,7 @@
 //   (flow-story.mjs); agent-owned like the rest of `output`.
 // - `output.merge` (optional) is the agent's record of the pull request its work becomes; `output.pr`
 //   is the server's, written only when the user clicks Send (flow-merge.mjs, pr-routes.mjs).
-// - `derived` (progress, current, waiting, pending, proof, output, story, terms) is computed on
+// - `derived` (progress, current, waiting, pending, proof, output, story, reasons, terms) is computed on
 //   read; listFlows attaches it and mergeKeepingAnswers drops it again.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -503,6 +503,25 @@ export function followsAnAsk(flow, nodeId) {
   return false
 }
 
+/** How much of a step's title the fallback reason quotes. */
+const REASON_STEP_MAX = 80
+
+/**
+ * Why the user is asked, as every view of an ask shows it under the question: the agent's
+ * `--why` ({ auto: false }), else where the ask sits ({ auto: true }): the flow's title and the
+ * step it follows (resolveAfter, so an empty after is the node before it), never a bare
+ * question. derive() puts one per ask in `reasons`; the pulse and the page read it from there.
+ */
+export function askReason(flow, node, after = resolveAfter(flow)) {
+  const why = String(node.why ?? '').trim()
+  if (why) return { text: why, auto: false }
+  const prev = (after.get(node.id) || []).map(id => flow.nodes.find(n => n.id === id)).find(n => isText(n?.title))
+  const step = prev ? String(prev.title).trim() : ''
+  const cut = step.length > REASON_STEP_MAX ? step.slice(0, REASON_STEP_MAX - 1).trimEnd() + '…' : step
+  const where = `Part of ${String(flow.title ?? '').trim()}`
+  return { text: cut ? `${where}, after: ${cut}` : where, auto: true }
+}
+
 export function derive(flow) {
   const nodes = flow.nodes
   const work = nodes.filter(n => WORK.has(n.type))
@@ -513,7 +532,8 @@ export function derive(flow) {
   // found breadth-first over the forward edges. An ask never reaches itself
   // (after only names earlier nodes), but a second ask further down is pending.
   const next = new Map(nodes.map(n => [n.id, []]))
-  for (const [id, froms] of resolveAfter(flow)) for (const f of froms) next.get(f)?.push(id)
+  const after = resolveAfter(flow)
+  for (const [id, froms] of after) for (const f of froms) next.get(f)?.push(id)
   const blockers = nodes.filter(n => n.type === 'ask' && (n.answer == null || n.answer === 'no')).map(n => n.id)
   const reached = new Set()
   const queue = [...blockers]
@@ -542,6 +562,7 @@ export function derive(flow) {
     proof,
     output: deriveOutput(flow),
     story: storyOf(flow),
+    reasons: Object.fromEntries(nodes.filter(n => n.type === 'ask').map(n => [n.id, askReason(flow, n, after)])),
     terms: termsOfFlow(flow).map(({ term, key }) => ({ term, key, known: !!lookup(key) })),
   }
 }

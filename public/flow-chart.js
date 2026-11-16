@@ -159,10 +159,19 @@
    * answer; an open ask has no room for it beside the buttons, so it is
    * dropped there (the row rail still shows the env). Asks take no evidence
    * (flows.mjs addEvidence refuses them), so no count is drawn.
+   * ⚠️ An open TEXT ask gets no Yes and No: pressing Yes there saved the text "yes" as its answer.
+   * It gets one `Answer…` pill instead, not an .fc-ans, so a click selects the node and the drawer
+   * opens with its text field.
    */
   function askParts(flow, n, b, cy) {
     const parts = []
     const showEnv = n.env && n.env !== flow.env
+    if (n.answer == null && n.kind === 'text') {
+      const w = NO_X + BTN_W - YES_X
+      parts.push(`<g class="fc-type"><rect x="${b.x + YES_X}" y="${b.y + b.h / 2 - 9}" width="${w}" height="18" rx="9"/>` +
+        `<text x="${b.x + YES_X + w / 2}" y="${cy}" text-anchor="middle">Answer…</text></g>`)
+      return { parts, titleMax: YES_X - CLEAR - TITLE_X }
+    }
     if (n.answer == null) {
       const btn = (val, label, x) =>
         `<g class="fc-ans" data-answer="${val}" data-node="${esc(n.id)}">` +
@@ -184,13 +193,24 @@
 
   /** A title as the chart shows it: marked words without their brackets (an SVG label is not a chip, terms.js). */
   const plain = s => (typeof window !== 'undefined' && window.Terms ? window.Terms.plain(s) : String(s ?? ''))
+  /**
+   * A node's tooltip: its title, and for an ask WHY it is asked (FlowDrawer.reason: the agent's --why, else
+   * where it sits), since the diamond has no room to show it. flows.js decorate adds a pending reason under it.
+   */
+  function tip(flow, n) {
+    const title = plain(n.title)
+    if (n.type !== 'ask') return title
+    const D = typeof window !== 'undefined' ? window.FlowDrawer : null
+    const why = D?.reason ? D.reason(flow, n).text : flow.derived?.reasons?.[n.id]?.text || String(n.why ?? '').trim()
+    return why ? `${title}\nWhy? ${plain(why)}` : title
+  }
 
   function renderNode(flow, n, b) {
     const cy = b.y + b.h / 2 + 4.5 // text baseline that centres 13 px text
     const ask = n.type === 'ask' ? askParts(flow, n, b, cy) : null
     const parts = [
       `<g class="${nodeClass(flow, n)}" data-node="${esc(n.id)}">`,
-      `<title>${esc(plain(n.title))}</title>`,
+      `<title>${esc(tip(flow, n))}</title>`,
       shape(n, b),
       `<text class="fc-glyph" x="${b.x + 14}" y="${cy}" text-anchor="middle">${glyphOf(n)}</text>`,
       `<text class="fc-title" x="${b.x + TITLE_X}" y="${cy}">${esc(fit(plain(n.title), TITLE_PX, 500, ask ? ask.titleMax : TITLE_MAX))}</text>`,
@@ -270,5 +290,5 @@
   }
 
   // textW and fit measure text for diagram.js too, so the Output's charts fit their labels the same way.
-  if (typeof window !== 'undefined') window.FlowChart = { layout, svg, pendingReasons, pendingReason, textW, fit, NODE_W, NODE_H, GAP_X, GAP_Y }
+  if (typeof window !== 'undefined') window.FlowChart = { layout, svg, tip, pendingReasons, pendingReason, textW, fit, NODE_W, NODE_H, GAP_X, GAP_Y }
 })()

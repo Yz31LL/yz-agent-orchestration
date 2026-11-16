@@ -13,7 +13,8 @@
 // lines by the same person. Marked words become term chips (terms.js). Nothing
 // else goes in this block: what it is lives behind the opened flow's one `?`.
 //
-// Every open ask of the flow is a `You · To decide: …` line with its own Yes and No (or
+// Every open ask of the flow is a `You · To decide: …` line, `Why? …` under it (the agent's
+// --why, else where the ask sits: FlowDrawer.why), with its own Yes and No (or
 // a text field and Save), drawn here whether the agent wrote the story or not: while a
 // flow is open the Waiting on you strip leaves its asks out, so this is where they are
 // answered. The buttons carry the strip's data-answer / data-node and data-text hooks,
@@ -49,23 +50,24 @@
       (why ? `<p class="st-why"><span class="st-why-k">Why?</span> ${chips(esc(why))}</p>` : '') + '</div></li>'
   }
 
-  /** An open ask as a line of the story, answerable in place. */
+  /** An open ask (the model's story.asks) as a line of the story, its reason under it, answerable in place. */
   function askLine(flowId, n) {
     const controls = n.kind === 'text'
       ? `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="story:${esc(flowId)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
       : `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes || '')}">Yes</button>` +
         `<button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no || '')}">No</button>`
     return `<li class="st-line st-ask" data-ask="${esc(n.id)}"><span class="st-who st-you">You</span><div class="st-text">` +
-      `<p class="st-did">To decide: ${chips(esc(String(n.title || '').trim()))}</p><div class="st-answer">${controls}</div></div></li>`
+      `<p class="st-did">To decide: ${chips(esc(n.title))}</p>${window.FlowDrawer.why(n.why, { cls: 'st-why' })}` +
+      `<div class="st-answer">${controls}</div></div></li>`
   }
 
   function html(c) {
-    const { lines, derived } = c.m.story
-    const asks = (c.flow?.nodes || []).filter(n => n.type === 'ask' && n.answer == null)
+    // the asks come from the model (flow-output.js), so an answer changes the signature and the line goes
+    const { lines, derived, asks = [] } = c.m.story
     // the derived To decide line is drawn again below, with its buttons
     const told = lines.filter(l => !(l.derived && /^To decide:/.test(l.did))).slice(0, MAX)
     const shown = told.length || asks.length
-    return `<section class="ob ob-story" aria-label="Story" ${c.keyed('story', [told, derived, asks.map(n => [n.id, n.title, n.kind, n.yes, n.no])])}>` +
+    return `<section class="ob ob-story" aria-label="Story" ${c.keyed('story', [told, derived, asks])}>` +
       (derived && told.length ? '<span class="ob-corner"><span class="sb-tag">auto</span></span>' : '') +
       (shown ? `<ol class="st-list">${told.map(line).join('')}${asks.map(n => askLine(c.flow.id, n)).join('')}</ol>` : '<p class="small faint ob-empty">Nothing yet.</p>') +
       '</section>'

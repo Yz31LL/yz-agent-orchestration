@@ -42,6 +42,7 @@ test('pulse lists the open asks of live flows', async () => {
   assert.equal(p.waiting.length, 1)
   assert.deepEqual(p.waiting[0], {
     flowId: 'waiting', flowTitle: 'Ship dark mode', agent: 'Agent 1', nodeId: 'n2', question: 'Deploy to dev?',
+    why: 'Part of Ship dark mode, after: Write the tokens', // no --why: where the ask sits (flows.mjs askReason)
     askedAt: F.readFlow('waiting').updatedAt,
   })
 })

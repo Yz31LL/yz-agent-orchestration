@@ -28,7 +28,7 @@
    * The alerts for one pulse.
    *   prevFlows  the `flows` this returned last time (Map id -> line), or null on the
    *              first poll: that poll is the baseline and raises no flow alerts.
-   *   p          the pulse: { waiting: [{ flowId, flowTitle, agent, nodeId, question }],
+   *   p          the pulse: { waiting: [{ flowId, flowTitle, agent, nodeId, question, why }],
    *              flows: [{ id, title, agent, status, evidence, undelivered }] }
    *   seen       ask keys (`flowId:nodeId`) already alerted, kept across reloads.
    *   first      the first poll since the page loaded: several new asks become one summary.
@@ -49,7 +49,7 @@
       if (!onFlows) out.push({ type: 'summary', count: waiting.length, text: `${plural(waiting.length, 'ask')} waiting for you on the Flows page.`, desktop: fresh.length > 0 })
     } else {
       for (const a of fresh) {
-        out.push({ type: 'waiting', flowId: a.flowId, nodeId: a.nodeId, agent: a.agent, title: a.flowTitle, text: `Waiting on you: ${a.flowTitle}`, body: a.question })
+        out.push({ type: 'waiting', flowId: a.flowId, nodeId: a.nodeId, agent: a.agent, title: a.flowTitle, text: `Waiting on you: ${a.flowTitle}`, body: a.question, why: a.why || '' })
       }
     }
 
@@ -376,8 +376,10 @@
       case 'waiting': {
         const answer = act('Answer', 'answer', a.flowId, a.nodeId)
         // a `decide` flow is titled by its question: say it once
-        toast(`<b>Waiting on you</b> · ${esc(a.title)}${a.body !== a.title ? `<br>${esc(a.body)}` : ''}${from}`, { kind: 'decision', action: answer, sticky: true })
-        desktop(a.text, a.body, go(answer))
+        // why it is asked goes under the question: in the toast, its line in the alerts panel, and the desktop alert
+        const why = a.why ? `<br><span class="nt-why">Why? ${esc(a.why)}</span>` : ''
+        toast(`<b>Waiting on you</b> · ${esc(a.title)}${a.body !== a.title ? `<br>${esc(a.body)}` : ''}${why}${from}`, { kind: 'decision', action: answer, sticky: true })
+        desktop(a.text, a.why ? `${a.body}\nWhy? ${a.why}` : a.body, go(answer))
         break
       }
       case 'blocked':

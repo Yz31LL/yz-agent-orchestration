@@ -46,7 +46,7 @@
         out.decisions.push({
           id: n.id, question: n.title, kind: n.kind || 'yesno', yes: n.yes ?? '', no: n.no ?? '',
           answer: n.answer ?? null, answeredAt: n.answeredAt ?? null, note: n.note ?? '',
-          open: n.answer == null, delivery: D().deliveryState(n, now),
+          open: n.answer == null, delivery: D().deliveryState(n, now), why: D().reason(flow, n),
         })
       } else if (n.type === 'note') {
         out.notes.push({ id: n.id, title: n.title, text: n.why || '' })
@@ -102,9 +102,9 @@
         ${x.reason ? `<p class="sv-sub sv-reason">${esc(x.reason)}</p>` : ''}</li>`
     const decision = x => {
       const n = nodeOf(x.id)
-      return `<li class="sv-row sv-ask${x.open ? ' is-open' : ''}" ${keyed(`d:${x.id}`, [x, n.why])}><div class="sv-row-head">
+      return `<li class="sv-row sv-ask${x.open ? ' is-open' : ''}" ${keyed(`d:${x.id}`, x)}><div class="sv-row-head">
           <b class="sv-q" aria-hidden="true">?</b>${goto(x.id, x.question)}</div>
-          ${n.why ? `<div class="fl-why sv-md">${D().md(n.why)}</div>` : ''}${D().ask(n)}</li>`
+          ${D().why(x.why, { tag: 'div', cls: 'fl-why sv-md', markdown: true })}${D().ask(n)}</li>`
     }
     // why and note text are agent Markdown: the drawer and the header render it with the same md() helper.
     const note = x => `<li class="sv-row sv-note" ${keyed(`n:${x.id}`, x)}><div class="sv-row-head">${goto(x.id, x.title)}</div>

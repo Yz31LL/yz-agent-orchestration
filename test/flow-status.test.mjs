@@ -82,6 +82,7 @@ test('model: decisions are the asks, an open one open, an answered one with its 
     id: 'n3', question: 'Ship dark mode to dev now?', kind: 'yesno',
     yes: 'Turn it on for everyone on dev.', no: 'Keep it behind the toggle one more week.',
     answer: null, answeredAt: null, note: '', open: true, delivery: '',
+    why: { text: 'The team has used it for a day.', auto: false },
   }])
   const sent = plain(FS.model(fx(f => {
     Object.assign(node(f, 'n3'), { answer: 'yes', answeredAt: '2026-11-12T09:00:00Z', sentAt: '2026-11-12T09:00:20Z', note: 'go' })

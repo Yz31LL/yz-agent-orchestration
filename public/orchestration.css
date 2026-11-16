@@ -76,6 +76,7 @@
 .nt-toast.agent { border-left-color: var(--ok); }
 .nt-toast.reminder { border-left-color: var(--warn); }
 .nt-toast b { color: var(--ink); }
+.nt-why { color: var(--muted); font-size: 12px; } /* why an ask is asked, under its question (notify.js) */
 .nt-actions { display: flex; gap: 10px; flex: none; }
 @keyframes ntIn { from { transform: translateY(8px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .nt-toast { animation: none; } }

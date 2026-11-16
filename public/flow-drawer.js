@@ -9,6 +9,9 @@
 //                              `not sent yet · retry` for an answered ask
 //   deliveryState(node, now?)  which of those four it is (flows.js draws the chart's from it)
 //   ask, evidenceHead, evidenceBody, evidenceUrl, md, chips   pieces the Output and Status views reuse
+//   reason(flow, node)         why an ask is asked: { text, auto } (flows.mjs askReason, via derived.reasons)
+//   why(reason, opts)          that reason as the `Why? …` line under a question: the strip, the Story,
+//                              Status and this drawer all draw it, so an ask is never a bare question
 ;(() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   /** Escaped text with its marked words ([word]) as term chips (terms.js); the text itself when terms.js is not loaded. */
@@ -50,6 +53,29 @@
       default: return ''
     }
   }
+  // ─── why an ask is asked ───
+
+  /**
+   * Why the user is asked: the server's derived.reasons (flows.mjs askReason: the agent's --why, else
+   * { auto: true } with the flow and the step the ask follows). A flow with no derived yet (a test, a
+   * flow fetched on its own before a poll) falls back to the node's own why, then to the flow's title.
+   */
+  function reason(flow, n) {
+    const r = flow?.derived?.reasons?.[n.id]
+    if (r && typeof r.text === 'string' && r.text.trim()) return { text: r.text, auto: !!r.auto }
+    const own = String(n.why ?? '').trim()
+    return own ? { text: own, auto: false } : { text: `Part of ${String(flow?.title ?? '').trim()}`, auto: true }
+  }
+  /**
+   * The reason as one `Why? …` line under the question. `markdown`: the agent's why is Markdown (Status and
+   * this drawer render it); elsewhere it is one plain line with term chips. The fallback is the dashboard's
+   * own words, never Markdown, and carries is-auto (drawn fainter, so it does not pass for the agent's).
+   */
+  function why(r, { tag = 'p', cls = '', markdown = false } = {}) {
+    const body = markdown && !r.auto ? md(r.text) : chips(esc(r.text))
+    return `<${tag} class="${cls ? `${cls} ` : ''}fl-ask-why${r.auto ? ' is-auto' : ''}"><span class="st-why-k">Why?</span> ${body}</${tag}>`
+  }
+
   const answerWord = n => (n.answer === 'yes' ? 'Yes' : n.answer === 'no' ? 'No' : String(n.answer))
 
   // ─── one node, by type ───
@@ -181,12 +207,12 @@
         <button type="button" class="link" data-drawer-close>Close</button>
       </div>
       ${pending ? `<p class="fl-pending-note">${esc(pending)}</p>` : ''}
-      ${n.why ? `<div class="fl-why">${md(n.why)}</div>` : ''}
+      ${n.type === 'ask' ? why(reason(flow, n), { tag: 'div', cls: 'fl-why', markdown: true }) : n.why ? `<div class="fl-why">${md(n.why)}</div>` : ''}
       ${body}
       <div class="fl-drawer-foot"><button type="button" data-ask-chat="${esc(n.id)}">Ask ${esc(chat)} about this step</button></div>`
   }
 
   // evidenceHead, evidenceBody, evidenceUrl, ask and md are shared with the Output view (flow-output.js), so
   // evidence, Markdown and the Yes / No controls are drawn ONE way, and flows.js answers both from one handler.
-  window.FlowDrawer = { html, fill, delivery, deliveryState, ask, evidenceHead, evidenceBody, evidenceUrl, md, chips }
+  window.FlowDrawer = { html, fill, delivery, deliveryState, ask, reason, why, evidenceHead, evidenceBody, evidenceUrl, md, chips }
 })()

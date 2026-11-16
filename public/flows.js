@@ -21,9 +21,6 @@
   const $ = (s, el = document) => el.querySelector(s)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const enc = encodeURIComponent
-  /** RAW text escaped, then its marked words as term chips (terms.js); plain words for a tooltip. */
-  const chipsRaw = s => (window.Terms ? window.Terms.html(esc(s)) : esc(s))
-  const plain = s => (window.Terms ? window.Terms.plain(s) : String(s ?? ''))
   const store = {
     get(k, d) { try { const v = localStorage.getItem('flows.' + k); return v == null ? d : JSON.parse(v) } catch { return d } },
     set(k, v) { try { localStorage.setItem('flows.' + k, JSON.stringify(v)) } catch {} },
@@ -117,23 +114,8 @@
   const tickets = f => (f.tickets || []).map(t => `<button type="button" class="fl-tk id" data-ticket="${esc(t)}" title="Open ${esc(t)} in the table">${esc(t)}</button>`).join('')
   const statusPill = s => `<span class="fl-status fs-${esc(s)}">${esc(s)}</span>`
 
-  // ═══ the strip: Waiting on you ═══
+  // ═══ the strip: Waiting on you (each row, its why under the question, is FlowBoard.stripRow) ═══
 
-  function stripRow({ f, n }) {
-    let controls
-    if (n.answer != null) {
-      controls = `<span class="fl-answered-word">${esc(n.answer === 'yes' ? 'Yes' : n.answer === 'no' ? 'No' : n.answer)}</span>${window.FlowDrawer.delivery(n)}`
-    } else if (n.kind === 'text') {
-      controls = `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="strip:${esc(f.id)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
-    } else {
-      controls = `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes)}">Yes</button>
-        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no)}">No</button>`
-    }
-    return `<div class="fl-wait-row" data-flow="${esc(f.id)}">
-        <div class="fl-wait-q"><b>${esc(f.agent)}</b> · <span class="fl-wait-ft">${esc(f.title)}</span> · <span class="fl-wait-ask" title="${esc(plain(n.why))}">${chipsRaw(n.title)}</span></div>
-        <div class="fl-wait-acts">${controls}<button type="button" class="link" data-show="${esc(n.id)}">show in flow</button></div>
-      </div>`
-  }
   function renderStrip() {
     // the flow open on the board asks its own questions (its Story and Status): its rows leave the strip
     const rows = window.FlowBoard.stripRows(data.flows, recent, board && opened ? opened.id : null)
@@ -143,7 +125,7 @@
     strip.hidden = !rows.length
     const html = rows.length
       ? `<section class="card fl-wait"><div class="card-head"><h3>${window.FlowBoard.stripHead(open, board && opened ? opened.id : null)} <span class="faint">· ${open}</span></h3></div>
-          <div class="fl-wait-list">${rows.map(stripRow).join('')}</div></section>`
+          <div class="fl-wait-list">${rows.map(r => window.FlowBoard.stripRow(r)).join('')}</div></section>`
       : ''
     if (html !== stripHtml) keepingInputs(strip, () => { strip.innerHTML = html; stripHtml = html })
   }
@@ -289,8 +271,9 @@
       if (proof === 'verified') $('.fc-glyph', g).textContent = '✓'
       const title = $('title', g)
       const why = window.FlowChart.pendingReason(f, id, reasons)
-      if (why) title.textContent = `${plain(n.title)}\n${why}`
-      else if (proof) title.textContent = `${plain(n.title)}\n${proof}`
+      // the chart's own tooltip (FlowChart.tip: an ask's reason too), then why it is pending or its proof
+      if (why) title.textContent = `${window.FlowChart.tip(f, n)}\n${why}`
+      else if (proof) title.textContent = `${window.FlowChart.tip(f, n)}\n${proof}`
     }
   }
 
@@ -404,7 +387,11 @@
     if (b.dataset.answer) answer(f.id, node.id, b.dataset.answer, b.closest('.fl-drawer, .fl-stat, .fl-out').querySelector(`[data-note="${CSS.escape(node.id)}"]`)?.value.trim())
     else if (b.dataset.reopen) answer(f.id, node.id, null)
     else if (b.dataset.retry) deliver(f.id, node.id)
-    else window.FactoryChat?.send(`In flow ${f.id}, explain step ${node.id} "${node.title}": what it does, why, and how I can verify it.`)
+    else {
+      // an ask goes with the reason it was asked (FlowDrawer.reason), so the chat starts from what the page shows
+      const asked = node.type === 'ask' ? ` It was asked because: ${window.FlowDrawer.reason(f, node).text}` : ''
+      window.FactoryChat?.send(`In flow ${f.id}, explain step ${node.id} "${node.title}": what it does, why, and how I can verify it.${asked}`)
+    }
   }
   async function onBoardChange(e) {
     const f = flowOf(opened?.id)

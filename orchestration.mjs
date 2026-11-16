@@ -230,13 +230,13 @@ export function makeOrchestration({ git, getStatus, listWorktrees }) {
 /** When an ask was put: the node's own `at` when the store stamped one, else the flow's last write. */
 const askedAt = (flow, node) => node.at || flow.updatedAt
 
-/** Open asks across flows that are not dropped, newest first. */
+/** Open asks across flows that are not dropped, newest first, each with why it is asked (flows.mjs askReason). */
 function waitingAsks(flows) {
   const asks = []
   for (const f of flows) {
     for (const id of f.derived.waiting) {
       const node = f.nodes.find(n => n.id === id)
-      asks.push({ flowId: f.id, flowTitle: f.title, agent: f.agent, nodeId: id, question: node.title, askedAt: askedAt(f, node) })
+      asks.push({ flowId: f.id, flowTitle: f.title, agent: f.agent, nodeId: id, question: node.title, why: f.derived.reasons?.[id]?.text || '', askedAt: askedAt(f, node) })
     }
   }
   return asks.sort((a, b) => String(b.askedAt || '').localeCompare(String(a.askedAt || '')))

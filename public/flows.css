@@ -29,7 +29,15 @@
 .fl-wait .card-head h3 .faint { font-weight: 400; }
 .fl-wait-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 9px 18px; border-bottom: 1px solid var(--line); }
 .fl-wait-row:last-child { border-bottom: 0; }
-.fl-wait-q { flex: 1 1 320px; min-width: 0; font-size: 13.5px; color: var(--muted); }
+.fl-wait-main { flex: 1 1 320px; min-width: 0; }
+.fl-wait-q { min-width: 0; font-size: 13.5px; color: var(--muted); }
+/* why an ask is asked, under its question everywhere (FlowDrawer.why); the dashboard's own fallback is fainter */
+.fl-wait-why { margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.fl-ask-why .st-why-k { margin-right: 4px; font-weight: 500; color: var(--muted); }
+.fl-ask-why > p:first-of-type { display: inline; }
+.fl-ask-why.is-auto { color: var(--faint); font-style: italic; }
+svg.fc .fc-type rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+svg.fc .fc-type text { font-size: 11px; font-weight: 600; fill: var(--muted); }
 .fl-wait-q b { color: var(--ink-2); font-weight: 600; }
 .fl-wait-ask { color: var(--ink); font-weight: 500; }
 .fl-wait-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

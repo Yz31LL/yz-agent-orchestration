@@ -94,8 +94,14 @@
     const ch = out.change
     const changeLines = ch && typeof ch === 'object' ? { before: ch.before || '', after: ch.after || '', at: ch.at || null } : null
     const lines = (flow.derived?.story || []).map(l => ({ who: l.who || '', did: l.did || '', why: l.why || '', derived: !!l.derived }))
+    // ⚠️ The open asks are in the model, not read off the flow by the Story: fill() redraws only when the
+    // model's signature changes, so an answer that changed nothing else on Output left the answered ask
+    // on the Story with its Yes and No, for good (pressing again answered again). Each carries its reason.
+    const asks = (flow.nodes || []).filter(n => n.type === 'ask' && n.answer == null).map(n => ({
+      id: n.id, title: String(n.title || '').trim(), kind: n.kind || 'yesno', yes: n.yes || '', no: n.no || '', why: D().reason(flow, n),
+    }))
     return {
-      story: { lines, derived: !lines.length || lines.some(l => l.derived) },
+      story: { lines, derived: !lines.length || lines.some(l => l.derived), asks },
       visual,
       result: result.length ? result : latest,
       before,

@@ -35,7 +35,7 @@ test('one new ask on a later poll is one Answer alert naming the flow and node',
   const r = run(new Map(), pulse({ waiting: [ask('a', 'n1')] }))
   assert.deepEqual(r.alerts, [{
     type: 'waiting', flowId: 'a', nodeId: 'n1', agent: 'Agent 3', title: 'Flow a',
-    text: 'Waiting on you: Flow a', body: 'Ship a?',
+    text: 'Waiting on you: Flow a', body: 'Ship a?', why: '',
   }])
 })
 
