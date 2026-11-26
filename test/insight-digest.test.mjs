@@ -191,3 +191,40 @@ test('a long inbox shows the newest items and says the older ones are in the par
   assert.doesNotMatch(text, /--section inbox/)
   assert.ok(text.length <= DIGEST_MAX)
 })
+
+// ═══ the urgent path (insight.notifyMaster urgent) ═══
+
+test('the urgent path: off by default; only urgent items; never without a session; at most one per 30 minutes, kept across a restart', async () => {
+  const stateFile = path.join(TMP, 'urgent', 'state.json')
+  let t = NOW
+  let open = true
+  const sent = []
+  const make = (mode = 'urgent') => inbox.makeNotifier({ settings: () => ({ notifyMaster: mode }), present: async () => open, send: async text => (sent.push(text), { ok: true }), now: () => t, stateFile, log: () => {} })
+  assert.equal(await make('off')({ text: 'x', urgent: true }), 'off')
+  const notify = make()
+  assert.equal(await notify({ text: 'a degraded check', urgent: false }), 'not urgent')
+  open = false
+  assert.equal(await notify({ text: 'failing', urgent: true }), 'no session', 'no paid turn for nobody')
+  assert.deepEqual(sent, [])
+  open = true
+  assert.equal(await notify({ text: 'Health: Paid ticket refresh is failing.', urgent: true }), 'sent')
+  assert.deepEqual(sent, ['Health: Paid ticket refresh is failing.'])
+  t += 29 * 60_000
+  assert.equal(await notify({ text: 'Gate stop: x', urgent: true }), 'too soon')
+  // a restart: a new notifier on the same state file still waits
+  assert.equal(await make()({ text: 'Gate stop: x', urgent: true }), 'too soon')
+  t += 2 * 60_000
+  assert.equal(await make()({ text: 'Gate stop: x', urgent: true }), 'sent')
+  assert.equal(sent.length, 2)
+  // a failed turn still took its slot: it cost money, so the next one waits too
+  const failing = inbox.makeNotifier({ settings: () => ({ notifyMaster: 'urgent' }), present: async () => true, send: async () => ({ ok: false }), now: () => t + 31 * 60_000, stateFile, log: () => {} })
+  assert.equal(await failing({ text: 'x', urgent: true }), 'failed')
+  assert.equal(await inbox.makeNotifier({ settings: () => ({ notifyMaster: 'urgent' }), present: async () => true, send: async () => ({ ok: true }), now: () => t + 32 * 60_000, stateFile, log: () => {} })({ text: 'y', urgent: true }), 'too soon')
+})
+
+test('the urgent message goes through the relay prompt as ONE message to the coordinator, its cost recorded as insight spend', () => {
+  const src = fs.readFileSync(new URL('../insight-wiring.mjs', import.meta.url), 'utf8')
+  assert.match(src, /send: async text => relayOutcome\(await claudeRun\(messagePrompt\(CONFIG\.coordinator, \[`From the dashboard: \$\{text\}/)
+  assert.match(src, /, 'insight'\),/)
+  assert.match(src, /present: \(\) => present\(CONFIG\.coordinator\)/)
+})
