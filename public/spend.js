@@ -28,6 +28,8 @@
   Object.assign(KIND_LABEL, { retro: 'Retrospective', learn: 'Learn' }), KIND_ORDER.push('retro', 'learn')
   KIND_LABEL.phone = 'Phone messages' // a message sent from the phone page (phone-talk.mjs)
   KIND_ORDER.push('phone')
+  KIND_LABEL.insight = 'Urgent notes to the coordinator' // only with insight.notifyMaster urgent (insight-inbox.mjs)
+  KIND_ORDER.push('insight')
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const num = v => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
 

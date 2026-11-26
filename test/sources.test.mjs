@@ -121,7 +121,7 @@ test('buildFactory with a filter shows the range plus extras, with owner from th
   assert.equal(f.snapshotAt, '2026-11-12T09:00:00.000Z')
   assert.deepEqual(f.collection, { id: 'prod', name: 'prod', kind: 'switchboard', prefix: 'ABC', range: [1, 2], planFile: '' })
   assert.deepEqual(f.collections, [{ id: 'prod', name: 'prod' }, { id: 'all', name: 'all' }])
-  assert.deepEqual(f.refresh, { id: 'prod', running: false, at: null, ok: null, message: '', everyMinutes: 0 })
+  assert.deepEqual(f.refresh, { id: 'prod', running: false, at: null, ok: null, message: '', everyMinutes: 0, paused: false })
   assert.equal('decisions' in f, false)
 })
 
