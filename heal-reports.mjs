@@ -16,7 +16,8 @@
 
 export const STRAY_AGE_MS = 6 * 3_600_000
 export const HUNG_MS = 30 * 60_000
-export const DELAY = Object.freeze({ degraded: 200, failing: 1000, minutes: 3 })
+/** A page feels frozen from about half a second; past 2 seconds it looks broken. Measured as each minute's 99th percentile. */
+export const DELAY = Object.freeze({ degraded: 500, failing: 2000, minutes: 3 })
 /** Sensible sizes, in bytes: past one is degraded, past three times it failing. */
 export const DISK_LIMITS = Object.freeze({ spend: 5e6, logs: 50e6, evidence: 2e9, tokens: 300e6, data: 5e9 })
 

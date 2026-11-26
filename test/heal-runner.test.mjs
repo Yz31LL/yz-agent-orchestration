@@ -281,3 +281,23 @@ test('every check runs in one pass with all its facts, and config.json is never 
   assert.equal(h.state().seen.checks.length, 9, 'the last look is saved for the digest')
   assert.equal(fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null, configBefore)
 })
+
+test('a steady check (the server) shows a new state only once it held for 3 looks in a row: one swing is no inbox item', async () => {
+  const clock = { now: NOW }
+  const p99 = [100, 900, 900, 900, 100, 900, 900, 900, 900, 900]
+  let i = 0
+  const items = []
+  const r = makeHealRunner({
+    settings: () => ({ enabled: true, repairs: true }), now: () => clock.now, delay: { sample: () => ({ p99Ms: p99[i], maxMs: p99[i++] }) },
+    stateFile: path.join(dir(), 'heal-state.json'), logFile: path.join(dir(), 'heal-log.jsonl'), log: () => {}, inbox: { append: x => items.push(x) },
+  })
+  const states = []
+  for (let k = 0; k < p99.length; k++) {
+    await r.runOnce()
+    states.push(r.view().checks.find(c => c.id === 'server').state)
+    clock.now += MIN
+  }
+  // the meter needs 3 slow minutes to say degraded, then the runner 3 looks of it in a row to show it
+  assert.deepEqual(states, ['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'degraded'])
+  assert.deepEqual(items.map(x => x.text.split(':')[0]), ['The dashboard server is degraded'])
+})

@@ -174,14 +174,15 @@ test('config: failing when it does not parse, degraded with every ignored settin
   assert.equal(configCheck({}).state, 'ok')
 })
 
-test('server: a held-up event loop for 3 minutes in a row is degraded, past a second failing, with the slowest work', () => {
+test('server: a held-up event loop for 3 minutes in a row is degraded (half a second), past 2 seconds failing, with the slowest work', () => {
   const m = (p99Ms, slowest = null) => ({ p99Ms, maxMs: p99Ms, slowest })
   assert.equal(serverCheck({ minutes: [m(20), m(30)] }).state, 'ok')
-  assert.equal(serverCheck({ minutes: [m(300), m(20), m(300)] }).state, 'ok', 'not sustained')
-  const d = serverCheck({ minutes: [m(300), m(400, { what: 'GET /api/status', ms: 2100 }), m(250)] })
+  assert.equal(serverCheck({ minutes: [m(300), m(400), m(450)] }).state, 'ok', 'under half a second is fine')
+  assert.equal(serverCheck({ minutes: [m(900), m(20), m(900)] }).state, 'ok', 'not sustained')
+  const d = serverCheck({ minutes: [m(600), m(800, { what: 'GET /api/status', ms: 2100 }), m(550)] })
   assert.equal(d.state, 'degraded')
-  assert.match(d.text, /held up to 400 ms at a time\. The slowest work: GET \/api\/status \(2\.1 s\)\./)
-  assert.equal(serverCheck({ minutes: [m(1500), m(1200), m(1100)] }).state, 'failing')
+  assert.match(d.text, /held up to 800 ms at a time\. The slowest work: GET \/api\/status \(2\.1 s\)\./)
+  assert.equal(serverCheck({ minutes: [m(2500), m(2200), m(3100)] }).state, 'failing')
 })
 
 test('agents: a busy session silent for 30 minutes and a coordinator with no session are degraded, each with a nudge to copy', () => {

@@ -39,7 +39,9 @@ export const CHECKS = Object.freeze([
   { id: 'strays', name: 'Stray dashboard copies', looksAt: 'Other copies of this dashboard left running for more than 6 hours.', check: straysCheck, everyMs: 10 * MIN },
   { id: 'disk', name: 'Disk and data growth', looksAt: 'spend.jsonl, the logs, the evidence folder and the token index.', check: diskCheck, everyMs: 30 * MIN },
   { id: 'config', name: 'Config problems', looksAt: 'config.json: does it read, and was any setting in it ignored?', check: configCheck },
-  { id: 'server', name: 'The dashboard server', looksAt: 'How long the server is held up at a time: the page feels frozen when it is.', check: serverCheck },
+  // steady: a new state shows (and goes in the inbox) only once it held for that many looks in a row: the server's
+  // delay swings minute to minute, and every swing would be one more inbox item (seen on a busy machine, 2026-11-26)
+  { id: 'server', name: 'The dashboard server', looksAt: 'How long the server is held up at a time: the page feels frozen when it is.', check: serverCheck, steady: 3 },
   { id: 'agents', name: 'Agents', looksAt: 'A busy session with no output for 30 minutes, and the coordinator with no session open.', check: agentsCheck },
 ])
 export const CHECK_IDS = Object.freeze(CHECKS.map(c => c.id))
@@ -69,6 +71,7 @@ export function makeHealRunner({
 } = {}) {
   const results = new Map() // id -> { state, text, saw, extra, at, would? }
   const ranAt = new Map() // id -> ms of its last run
+  const streak = new Map() // id -> { state, n }: how many looks in a row gave that state (a `steady` check)
   const wouldSaid = new Set() // `${check}|${target}`: a repair written once as `would` while repairs are off
   const failedAt = new Map() // `${check}|${target}` -> ms: a repair that failed is tried again at most once an hour
   const minutes = [] // the Server check's last few minutes
@@ -177,6 +180,12 @@ export function makeHealRunner({
       ranAt.set(c.id, now())
       let res = await look(c, state)
       if (res.repair) res = await repairStep(c, res, s, state)
+      if (c.steady) {
+        const run = streak.get(c.id)
+        streak.set(c.id, run?.state === res.state ? { state: res.state, n: run.n + 1 } : { state: res.state, n: 1 })
+        const shown = results.get(c.id)
+        if (shown && shown.state !== res.state && streak.get(c.id).n < c.steady) continue // not steady yet: the last state stays
+      }
       const before = results.has(c.id) ? results.get(c.id).state : seen.get(c.id)
       noteChange(c, res, before === 'off' ? undefined : before)
       results.set(c.id, { ...res, at: iso() })
