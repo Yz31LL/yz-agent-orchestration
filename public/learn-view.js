@@ -90,7 +90,7 @@
     return lines.length ? `<ul class="ln-rules">${lines.join('')}</ul>` : ''
   }
   const upper = t => t.charAt(0).toUpperCase() + t.slice(1)
-  const byTag = c => (c.by === 'learn' ? '<span class="ln-tag">From Learn</span>' : '<span class="ln-tag ln-tag-you">Your edit</span>')
+  const byTag = c => (c.by === 'learn' ? '<span class="ln-tag">From Learn</span>' : c.by === 'master' ? '<span class="ln-tag">From a suggestion</span>' : '<span class="ln-tag ln-tag-you">Your edit</span>')
 
   function numbersTable(c) {
     const rows = (c.verdict?.rows || []).map(r => `<tr><th scope="row">${LABEL[r.key]}</th><td>${numberText(r.key, r.before)}</td><td>${numberText(r.key, r.after)}</td>` +
@@ -120,7 +120,7 @@
     const what = [...(c.added || []).map(t => `+ ${t}`), ...(c.removed || []).map(t => `− ${t}`), ...(c.spec ? [`specification ${c.spec}`] : [])].join('; ')
     const state = c.state === 'kept' ? `Kept · ${OVERALL[c.verdict?.overall] || ''}` : c.state === 'reverted' ? `Reverted · ${OVERALL[c.verdict?.overall] || ''}`
       : c.due ? 'Verdict due now' : `Verdict due ${dayText(c.dueAt)}`
-    return `<li class="ln-row"><span class="ln-row-when">${esc(dayText(c.at))}</span><span class="ln-row-who">${esc(c.label)} ${c.by === 'learn' ? '<span class="ln-tag">Learn</span>' : ''}</span>` +
+    return `<li class="ln-row"><span class="ln-row-when">${esc(dayText(c.at))}</span><span class="ln-row-who">${esc(c.label)} ${c.by === 'learn' ? '<span class="ln-tag">Learn</span>' : c.by === 'master' ? '<span class="ln-tag">Suggestion</span>' : ''}</span>` +
       `<span class="ln-row-what" title="${esc(what)}">${esc(what || 'saved')}</span><span class="ln-row-state ln-state-${esc(c.due && c.state === 'waiting' ? 'due' : c.state)}">${esc(state)}</span></li>`
   }
 

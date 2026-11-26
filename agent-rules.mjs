@@ -6,7 +6,8 @@
 //   data/agent-rules.json      { agents: { "<label>": { spec, rules: [{ id, text, addedAt }], updatedAt } } }
 //   data/agent-rules-log.jsonl one line per saved change: { at, label, spec: set|changed|cleared|null, added: [text],
 //                              removed: [text], by? }, newest last, the newest LOG_KEEP kept. `by` marks a save made
-//                              from the Learn page (CHANGE_BY: an accepted proposal, a Revert); none is the user's edit
+//                              from the Learn page (CHANGE_BY: an accepted proposal, a Revert) or a suggestion of the
+//                              coordinator the user accepted as a rule (`master`, insight-routes.mjs); none is the user's edit
 //
 // Rules this file keeps:
 // - The validator and the merge are PURE (checkChange, applyChange, rulesView, rulesBlock, rulesText): no file,
@@ -39,7 +40,7 @@ export const RULES_LOG = path.join(DATA_DIR, 'agent-rules-log.jsonl')
 export const LOG_KEEP = 500
 const NL = '\n'
 /** The marks a log line may carry (learn-routes.mjs): `learn` an accepted Learn proposal, `revert` a Revert there. */
-export const CHANGE_BY = Object.freeze(['learn', 'revert'])
+export const CHANGE_BY = Object.freeze(['learn', 'revert', 'master'])
 /** A specification of at most 2,000 characters, a rule of 1 to 300, at most 30 rules per agent. */
 export const RULE_LIMITS = Object.freeze({ spec: 2000, rule: 300, rules: 30 })
 
@@ -240,7 +241,7 @@ const SPEC_ALONE = { set: label => `${label} got a specification.`, changed: lab
 const SPEC_PART = { set: 'its specification was set', changed: 'its specification changed', cleared: 'its specification was cleared' }
 
 /** What a marked line adds to its sentence (CHANGE_BY). */
-const BY_WORDS = { learn: ' From Learn.', revert: ' Reverted on the Learn page.' }
+const BY_WORDS = { learn: ' From Learn.', revert: ' Reverted on the Learn page.', master: ' A suggestion of the coordinator, accepted by you.' }
 
 /** A log line as one plain sentence: "Agent 1 got 2 new rules and its specification changed.", then its mark's words. */
 export function changeSentence(line) {

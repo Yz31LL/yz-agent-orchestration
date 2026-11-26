@@ -49,7 +49,7 @@ const ago = ms => {
 export function straysCheck({ procs = null, error = '', selfPid, now }) {
   if (!Array.isArray(procs)) return { state: 'ok', text: `The list of running dashboards could not be read this time${error ? `: ${error}` : ''}.`, saw: 'no process list', extra: { strays: [] } }
   const strays = procs.filter(p => p.pid !== selfPid && timeOf(p.startedAt) !== null && now - timeOf(p.startedAt) > STRAY_AGE_MS)
-    .map(p => ({ pid: p.pid, port: p.port ?? null, ageMs: now - timeOf(p.startedAt), folder: p.folder || '', canStop: !!p.canStop }))
+    .map(p => ({ pid: p.pid, port: p.port ?? null, startedAt: p.startedAt, ageMs: now - timeOf(p.startedAt), folder: p.folder || '', canStop: !!p.canStop }))
     .sort((a, b) => b.ageMs - a.ageMs)
   const where = s => `${s.port ? `port ${s.port}` : 'no port'}, ${ago(s.ageMs)}${s.folder ? `, in ${s.folder}` : ''}`
   return {
