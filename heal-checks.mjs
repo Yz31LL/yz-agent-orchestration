@@ -155,7 +155,7 @@ export function storesCheck({ files = [], copied = {}, tokenBuild = null, now })
     state: worst(states),
     text: parts.length ? parts.join(' ') : `Every store reads: ${files.filter(f => f.exists).map(f => f.label).join(', ') || 'none written yet'}.`,
     saw: files.map(f => `${f.name}: ${!f.exists ? 'none yet' : f.parses ? 'reads' : 'damaged'}`).join(', '),
-    ...(todo.length ? { repair: { id: 'copy-rebuild', target: todo.map(f => f.name).join(','), what: `Kept a copy of ${todo.map(f => f.label).join(', ')} and ${todo.some(f => f.rebuild) ? 'rebuilt what can be rebuilt' : 'reported it'}.` } } : {}),
+    ...(todo.length ? { repair: { id: 'copy-rebuild', target: todo.map(f => f.name).join(','), what: `Kept a copy of ${todo.map(f => f.label.replace(/^The /, 'the ')).join(', ')} and ${todo.some(f => f.rebuild) ? 'rebuilt what can be rebuilt' : 'reported it'}.` } } : {}),
     extra: { damaged: bad.map(f => ({ name: f.name, label: f.label, rebuild: !!f.rebuild })) },
   }
 }
