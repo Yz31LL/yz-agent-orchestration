@@ -28,6 +28,7 @@
 
 import { EFFORTS, MODELS } from './agent-settings.mjs'
 import { CONFIG, CONFIG_FILE } from './config.mjs'
+import { beat, registerLoop } from './heal-beats.mjs'
 import { listFlows, readFlow, writeFlow } from './flows.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -192,8 +193,17 @@ export function makeRoutingRoute({
     }
   }
 
+  /** One pass with a heartbeat when it ends (heal-beats.mjs); also the watchdog's one restart. */
+  route.restart = () => {
+    const t = Date.now()
+    sweep()
+    beat('routing', Date.now() - t)
+  }
   /** The once-a-minute outcome sweep; unref'd, so it never keeps the process alive. */
-  route.start = () => setInterval(sweep, SWEEP_MS).unref()
+  route.start = () => {
+    registerLoop('routing', { label: 'Routing outcomes', everyMs: SWEEP_MS, restart: route.restart })
+    return setInterval(route.restart, SWEEP_MS).unref()
+  }
   route.sweep = sweep
   return route
 }

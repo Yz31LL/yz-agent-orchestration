@@ -44,6 +44,7 @@
 // - riskOf is feat/smart-quality's provider (a flow's risk level); none by default, and the estimates still work.
 
 import { CONFIG } from './config.mjs'
+import { beat, registerLoop } from './heal-beats.mjs'
 import { listFlowIds, readFlow, validateFlow, writeFlow } from './flows.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { pipelineGraph } from './pipeline.mjs'
@@ -371,9 +372,20 @@ export function makePredictRoute({
   route.sweep = sweep
   route.ready = () => lastPlacement !== null
   route.placedThrough = () => dataAtOf(lastPlacement)
+  // one pass of the sweep, with a heartbeat when it ends (heal-beats.mjs: the watchdog notices a sweep that hangs)
+  const pass = () => {
+    const t = Date.now()
+    return sweep().catch(err => log(`predict: ${err?.message || err}`)).finally(() => beat('predict', Date.now() - t))
+  }
+  /** The watchdog's one restart: a hung sweep's guard is dropped and a fresh pass runs. */
+  route.restart = () => {
+    sweeping = null
+    return pass()
+  }
   route.start = () => {
-    sweep().catch(err => log(`predict: ${err?.message || err}`))
-    setInterval(() => sweep().catch(err => log(`predict: ${err?.message || err}`)), SWEEP_MS).unref()
+    registerLoop('predict', { label: 'Predict and warn (estimates and alerts)', everyMs: SWEEP_MS, restart: route.restart })
+    pass()
+    setInterval(pass, SWEEP_MS).unref()
   }
   return route
 }

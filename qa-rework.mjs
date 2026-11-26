@@ -30,6 +30,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { pendingRework } from './flow-security.mjs'
+import { beat, registerLoop } from './heal-beats.mjs'
 import { EVIDENCE_DIR, listFlowIds, readFlow, validateFlow, writeFlow } from './flows.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -133,7 +134,9 @@ export function startReworkWatch(relay, every = NOTICE_MS) {
   const tick = () => {
     const sent = noticeReworks(relay)
     if (sent.length) console.log(`qa: ${sent.length} failure(s) going back for rework: ${sent.join(', ')}`)
+    beat('rework') // the watchdog's heartbeat (heal-beats.mjs)
   }
+  registerLoop('rework', { label: 'QA rework watch', everyMs: every, restart: tick })
   tick()
   return setInterval(tick, every).unref()
 }

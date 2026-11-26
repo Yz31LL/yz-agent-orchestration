@@ -22,6 +22,7 @@
 //   `flows()` is every flow, archived ones too (listFlows({ archived: 'any' })); `repo()` the `owner/name` gh is
 //   given with --repo, '' for none (gh reads the remote itself), or null when it cannot be told.
 
+import { beat, registerLoop } from './heal-beats.mjs'
 import { PR_JSON, lookupOf, prItems, readOf } from './prlist-items.mjs'
 
 const EVERY_MS = 60_000
@@ -116,7 +117,11 @@ export function makePrList({ gh, flows, repo, now = Date.now, everyMs = EVERY_MS
   function refresh() {
     if (running) return running
     startedAt = now()
-    running = run().finally(() => { running = null })
+    const t = now()
+    running = run().finally(() => {
+      running = null
+      beat('prlist', now() - t) // the watchdog's heartbeat (heal-beats.mjs): a read of GitHub that never ends never beats
+    })
     return running
   }
 
@@ -135,6 +140,8 @@ export function makePrList({ gh, flows, repo, now = Date.now, everyMs = EVERY_MS
     refresh,
     idle: async () => { while (running) await running.catch(() => {}) },
     start() {
+      // the watchdog's one restart drops a hung read's guard and reads again
+      registerLoop('prlist', { label: 'Pull requests list', everyMs, restart: () => ((running = null), refresh()) })
       kick()
       setInterval(kick, everyMs).unref?.()
     },
