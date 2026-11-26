@@ -102,7 +102,11 @@ turns, billed to your Claude account like any other session:
 - **Explain**: a selection the glossary does not know is one small turn, about a cent.
 - **Learning words**: a flow's marked words the glossary does not know yet, up to 12 in one small turn,
   a fraction of a cent; at most 200 words a day.
-- **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn.
+- **Ticket refresh**: each refresh of a collection (the button, or its timer) is one turn. The watchdog pauses a
+  timer after 3 failures in a row, so a broken refresh stops spending (the Health page, `#/health`).
+- **Urgent notes to Master**: only with `insight.notifyMaster` set to `urgent`, a failing health check or a gate stop
+  is one short relay turn, about 1 to 3 cents, at most one every 30 minutes. Off by default: the digest tells Master
+  for free.
 - **Prompt generator** (`#/generators`): each **Generate** is one Opus 5.5 turn at high effort, about 10 cents for
   the first run in an hour and about 5 cents for each run after it (measured 2026-11-25, with the brainstorming skill
   and the orchestration brief).
@@ -2001,6 +2005,61 @@ under the lines at the top. Nothing shows while there is none.
   at most once a minute, four at a time with an 8 s limit each, and never reads a merged or closed one again. A read
   that fails keeps the last good state and the block says so under the list. The page asks every 30 s while the tab
   is visible, and at once when you come back to it. `prlist-store.mjs`, `prlist-routes.mjs`. No setting.
+
+## Master's insight: one read of everything, suggestions, and a self-healing watchdog
+
+The user asked for Master (the coordinator) "to be able to read the whole agent orchestration so it can suggest
+improvements every time possible, self healing". Four parts, none of which runs a model by default:
+
+- **The digest** (`node tools/factory.mjs orchestration [--json] [--section <name>] --by <label>`): the whole
+  orchestration for an agent to read in one go, at most about 12,000 characters, under stable headings: PIPELINE (the
+  boxes in route order, who is on each, busy, idle or no session, the model and effort set, running subagents), WORK
+  (open flows by stage with their age there, what waits on the user, flows a gate stopped, open pull requests and
+  their checks), NUMBERS (the score, Pipeline time and Pipeline tokens for 7 and 30 days, each against the period of
+  the same length before), SIGNALS (the grouped alerts, estimate misses, lessons hit most, Learn's last proposals and
+  what you did with them, rule changes with a verdict due, routing suggestions followed or not and how they went),
+  HEALTH (every watchdog check, the repairs of the last 24 hours) and SUGGESTIONS (Master's own, so it does not repeat
+  itself). Each part has a share of the size; `--section` prints one in full. The CLI asks the running dashboard
+  (`GET /api/insight/digest`, the same in-memory stores the pages read: no model, no `gh` call, no transcript scan)
+  and, with none running, builds what it can from the files; a part it cannot read says `Left out:` and why.
+  `insight-sections.mjs`, `insight-gather.mjs`, `insight-digest.mjs`, `insight-files.mjs`, `tools/insight-cli.mjs`.
+- **Suggestions** (`#/suggestions`, in the Quality group after Learn). Master files one with
+  `factory.mjs suggest "<what to change>" --why "<evidence>" --kind rule|setting|process|fix [--target <agent|key>]
+  [--effort small|medium|large]`, lists its own with `suggestions [--open]` and takes back an unanswered one with
+  `suggest-drop <id>`; only the coordinator may (`--by`). No evidence (a number or a flow) is refused; a near-duplicate
+  of an open or rejected one is refused with the earlier id; at most 10 are open. On the page each is a card with the
+  text, the evidence, kind, target and effort: **Accept** (a note for you or Master to act on: the dashboard changes
+  no setting by itself), **Reject** (an optional reason, kept so it is not proposed again) and, for a rule for one
+  agent, **Accept and add the rule** (saved through the same rules path as your own edit, marked as a suggestion, so
+  Learn gives it a verdict in two weeks). The Suggestions link carries the open count; Home and the top of the Agents
+  page say so in one line. `data/suggestions.json`, `insight-suggestions.mjs`, `insight-routes.mjs`,
+  `public/insight-view.js`, `public/insight-pages.js`.
+- **The watchdog** (`#/health`, last in the Agents group). Nine checks every minute inside the server, never on a
+  request's path: the paid ticket refresh, deliveries to agents, the indexes and stores, the background loops, stray
+  dashboard copies (every 10 minutes), disk and data growth (every 30), config problems, the server's own delay, and
+  agents (a busy session silent for 30 minutes, a coordinator with no session). Each is ok, degraded or failing, has a
+  switch (kept in `data/heal-state.json`), and at most ONE repair from a fixed list in code: **pause** a ticket
+  refresh after 3 failures in a row (in memory, never in config.json; the line says `The ticket refresh failed 3
+  times and is paused. It has cost $X since it last worked.` with the real error and **Resume**), **hold** deliveries
+  to an agent after 3 paid failures (no paid turn until **Release**; waiting for a session never pays anyway),
+  **keep a copy** of a damaged store and rebuild it where the code can (the token index, the stand-up index, the
+  alerts state; the lessons and the suggestions are copied and reported), **start a silent loop once more** (then
+  only reported). Stray copies are listed with port, age and folder and a **Stop** you press (checked again by its
+  command line and start time; never this server, never by itself). Disk, config, server and agents only report
+  (**Copy a nudge** copies a sentence; it sends nothing). Every repair is a line of `data/heal-log.jsonl` and shown
+  on the page. `healing.enabled` and `healing.repairs` (both true by default) in config.json; with `repairs` false
+  the watchdog only reports. `heal-checks.mjs`, `heal-reports.mjs`, `heal-runner.mjs`, `heal-repairs.mjs`,
+  `heal-facts.mjs`, `heal-procs.mjs`, `heal-beats.mjs`, `heal-store.mjs`.
+- **What changed, without paying per message.** `data/master-inbox.jsonl` collects a check that changed state, a
+  repair, your decision on a suggestion, a new alert and a flow a gate stopped; the digest opens with `N new since you
+  last read`, and the coordinator's read marks them read. `insight.notifyMaster` is `off` by default; `urgent` also
+  sends a failing check or a gate stop to Master through the answer relay: one message, only while it has a session
+  open, at most one every 30 minutes, about 1 to 3 cents each on `factory.relayModel`, shown as `insight` spend.
+  `insight-inbox.mjs`.
+
+Routes: `GET /api/insight/digest`, `GET /api/insight/summary`, `GET /api/insight/suggestions`, `POST
+/api/insight/suggestions/<id>` `{ do: accept|reject|rule|done, reason? }`, `GET /api/heal`, `POST /api/heal/switch |
+resume | release | stop | run`. Every POST needs the page's own Origin.
 
 ## Phone access
 

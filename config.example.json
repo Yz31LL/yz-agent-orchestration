@@ -71,6 +71,8 @@
     }
   },
   "outputs": { "max": 7, "warnAfterDays": 2 },
+  "healing": { "enabled": true, "repairs": true },
+  "insight": { "notifyMaster": "off" },
   "alerts": {
     "enabled": true,
     "stuckFactor": 3,

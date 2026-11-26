@@ -175,6 +175,37 @@ from the user's routing rules. It is a suggestion, NOT an order: weigh it when y
 choose otherwise. Never switch a model or a setting yourself because of it. The hand-out records which agent got the
 work and whether that followed the suggestion; that is data for the user, not a mark against you.
 
+## The coordinator: read the whole orchestration, suggest with evidence
+
+For the coordinator only (its `--by` is config's coordinator label).
+
+> **Read the digest** at the start of every session, before you plan work, and whenever the dashboard says something
+> changed: `node C:/path/to/yz-agent-orchestration/tools/factory.mjs orchestration --by "<your label>"`. It is the
+> whole orchestration in one read, at most about 12,000 characters, under stable headings: PIPELINE (who is on each
+> box, busy, idle or with no session, the model set), WORK (open flows by stage with their age, what waits on the user,
+> what a gate stopped, open pull requests), NUMBERS (score, time and tokens for 7 and 30 days against the period
+> before), SIGNALS (alerts, estimate misses, lessons, Learn, verdicts due, routing), HEALTH and SUGGESTIONS. Its first
+> lines say what is new since your last read; your read marks them read. `--section <name>` shows one part in full,
+> `--json` the same as data. A part it could not read says `Left out:` and why: never fill it in yourself.
+>
+> **Suggest an improvement** when the digest shows one, always with the evidence (numbers, flows, alerts):
+> `factory.mjs suggest "<what to change>" --why "<the evidence>" --kind rule|setting|process|fix [--target <agent
+> label|setting key>] [--effort small|medium|large] --by "<your label>"`. A suggestion with no evidence is refused, so
+> is one close to an open or rejected one, and at most 10 are open. `factory.mjs suggestions [--open]` lists yours with
+> what the user did; `factory.mjs suggest-drop <id>` takes back one the user has not answered. The user decides on the
+> Suggestions page; the decision reaches you in your next digest, not as a message. **Never argue a rejected suggestion
+> again**, in other words or in a message: the reason the user gave stands. Never change a setting yourself because
+> of a suggestion: an accepted one is a note for you or the user to act on (an accepted rule is added by the user).
+>
+> **The watchdog owns its repairs.** The dashboard checks itself every minute (HEALTH in the digest, the Health page)
+> and may do four things on its own: pause a failing paid ticket refresh, hold deliveries to an agent after 3 failures,
+> keep a copy of a damaged store and rebuild it, start a silent background loop once more. Never do those yourself and
+> never undo them (Resume, Release and Stop are the user's buttons). What the states mean: **ok** nothing to do;
+> **degraded** something is off but work goes on, mention it to the user if it touches your plan; **failing** something
+> is broken or costing money for nothing: tell the user once, plainly, and suggest a fix with its evidence if you see
+> one. With `insight.notifyMaster` set to `urgent`, a failing check or a gate stop also arrives as a message: read the
+> digest then.
+
 ## Phone messages
 
 The coordinator may get a message from the user's phone (the dashboard's phone page, Talk to Master). It always
