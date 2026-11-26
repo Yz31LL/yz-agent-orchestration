@@ -4,7 +4,8 @@
 // agent-cards.js, Progress report and all), and a pull-out panel on the right (pipeline-panel.js) whose
 // Tickets and Outputs lists select a ticket and light its path through the diagram. Above the diagram, the
 // pipeline score (score-strip.js), read again with every pipeline read, and under it Pipeline time (time-strip.js).
-// At the top, above the score, the Alerts line while any alert stands (predict-alerts.js: Show them opens its rows, as
+// At the very top, the watchdog's line while a health check is not OK and the line of Master's open suggestions
+// (insight-pages.js fills [data-insight-agents]). Then, above the score, the Alerts line while any alert stands (predict-alerts.js: Show them opens its rows, as
 // does #/agents?alerts). Right over the diagram, one line while finished outputs wait for the user's sign-off (completed-view.js: Show them
 // opens the Output list in the panel); marking one completed re-reads the pipeline at once (`outputs:change`).
 //
@@ -66,7 +67,8 @@
 
   function mount() {
     const section = document.getElementById('agentsView')
-    section.innerHTML = `<div class="pl-alerts" id="plAlerts" data-pe-alerts hidden></div>
+    section.innerHTML = `<div class="pl-insight" id="plInsight" data-insight-agents hidden></div>
+    <div class="pl-alerts" id="plAlerts" data-pe-alerts hidden></div>
     <div class="pl-prs" id="plPrs" data-prl hidden></div>
     <div class="pl-page">
       <div class="pl-main">

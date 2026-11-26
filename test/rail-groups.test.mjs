@@ -42,8 +42,8 @@ test('the rail has four groups in order, Work, Agents, Quality and History, each
   assert.deepEqual(groups.map(g => g.label), ['Work', 'Agents', 'Quality', 'History'])
   assert.deepEqual(groups.map(views), [
     ['home', 'flows', 'tickets', 'script'],
-    ['agents', 'subagents', 'bank', 'routing'],
-    ['qa', 'lessons', 'learn'],
+    ['agents', 'subagents', 'bank', 'routing', 'health'],
+    ['qa', 'lessons', 'learn', 'suggestions'],
     ['timeline', 'archive', 'glossary'],
   ])
   assert.deepEqual(warnings, [], 'the shell registers its links without a warning')
@@ -51,7 +51,7 @@ test('the rail has four groups in order, Work, Agents, Quality and History, each
 
 test('every page keeps its address, its name and an icon', () => {
   const { R, Shell } = withShell()
-  const want = { home: '#/home', flows: '#/flows', tickets: '#/tickets', script: '#/generators', agents: '#/agents', subagents: '#/subagents', bank: '#/bank', routing: '#/routing', qa: '#/qa', lessons: '#/lessons', learn: '#/learn', timeline: '#/timeline', archive: '#/archive', glossary: '#/glossary', settings: '#/settings' }
+  const want = { home: '#/home', flows: '#/flows', tickets: '#/tickets', script: '#/generators', agents: '#/agents', subagents: '#/subagents', bank: '#/bank', routing: '#/routing', qa: '#/qa', lessons: '#/lessons', learn: '#/learn', suggestions: '#/suggestions', health: '#/health', timeline: '#/timeline', archive: '#/archive', glossary: '#/glossary', settings: '#/settings' }
   for (const [view, href] of Object.entries(want)) {
     const e = R.linkFor(view)
     assert.equal(e?.href, href, view)

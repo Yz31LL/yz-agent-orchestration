@@ -19,6 +19,7 @@
   VIEWS.push('lessons') // the Lessons page (quality-lessons-page.js): #/lessons[?area=tests|edit=<candidate>]
   VIEWS.push('routing') // the Routing page (routing-page.js): #/routing, #/routing?flow=<id>
   VIEWS.push('learn') // Learn (learn-page.js): #/learn[?run=<id>], retrospectives and a verdict on every rule change
+  VIEWS.push('suggestions', 'health') // Master's insight (insight-pages.js): #/suggestions[?id=<id>] and #/health, the watchdog
   // Their rail links, by group and by name (rail-groups.js decides the rest; a new page adds its link the same way).
   // The bank: three stacked layers (saved ways of working), after Subagents.
   window.RailGroups?.add('agents', { view: 'bank', href: '#/bank', label: 'Orchestration bank', icon: '<path d="m12 3.5 8.5 4.25L12 12 3.5 7.75Z"/><path d="m3.5 12 8.5 4.25L20.5 12"/><path d="m3.5 16.25 8.5 4.25 8.5-4.25"/>' }, { after: 'subagents' })
@@ -28,6 +29,9 @@
   window.RailGroups?.add('quality', { view: 'lessons', href: '#/lessons', label: 'Lessons', icon: '<path d="M3 5.5c3-1.2 6-1 9 1 3-2 6-2.2 9-1V19c-3-1.2-6-1-9 1-3-2-6-2.2-9-1Z"/><path d="M12 6.5V20"/><path d="m14.8 12.2 1.7 1.7 3-3.4"/>' }, { after: 'qa' })
   // Learn: a light bulb (an idea, from what the work taught), after Lessons.
   window.RailGroups?.add('quality', { view: 'learn', href: '#/learn', label: 'Learn', icon: '<path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/>' }, { after: 'lessons' })
+  // Suggestions: a speech bubble with a star (what Master proposes), after Learn. Health: a heart with a pulse line, last of Agents.
+  window.RailGroups?.add('quality', { view: 'suggestions', href: '#/suggestions', label: 'Suggestions', icon: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4 4v-4h-.5A1.5 1.5 0 0 1 4 14.5Z"/><path d="m12 6.8 1 2.1 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3Z"/>' }, { after: 'learn' })
+  window.RailGroups?.add('agents', { view: 'health', href: '#/health', label: 'Health', icon: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.2a4.2 4.2 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z"/><path d="M6.5 12.5h3l1.4-2.6 2 4.4 1.3-1.8h3.3"/>' })
   const OLD = { factory: 'tickets', flow: 'timeline' }
   const route = (view, params = {}, redirect = null) => ({ view, params, redirect })
   const decode = s => {
@@ -167,6 +171,7 @@
   Object.assign(TITLE, { lessons: 'Lessons' }), Object.assign(SECTION, { lessons: 'lessonsView' }), Object.assign(PAGE, { lessons: 'QualityLessons' })
   Object.assign(TITLE, { routing: 'Routing' }), Object.assign(SECTION, { routing: 'routingView' }), Object.assign(PAGE, { routing: 'RoutingPage' })
   Object.assign(TITLE, { learn: 'Learn' }), Object.assign(SECTION, { learn: 'learnView' }), Object.assign(PAGE, { learn: 'LearnPage' })
+  Object.assign(TITLE, { suggestions: 'Suggestions', health: 'Health' }), Object.assign(SECTION, { suggestions: 'suggestionsView', health: 'healthView' }), Object.assign(PAGE, { suggestions: 'SuggestionsPage', health: 'HealthPage' })
 
   // ─── icons: 24-unit boxes drawn at 20 px, 1.75 stroke (shell.css); the pages' own are in rail-groups.js ───
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`
