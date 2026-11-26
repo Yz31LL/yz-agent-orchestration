@@ -77,10 +77,11 @@
 .pl-insight[hidden], #homeInsight[hidden] { display: none; }
 .pl-insight .ins-line, #homeInsight .ins-home { padding: 10px 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius); background: var(--surface); }
 .pl-insight .ins-line.is-failing { border-left-color: var(--bad); }
-.pl-insight .ins-line.is-note, #homeInsight .ins-home { border-left-color: var(--accent); }
+.pl-insight .ins-line.is-note, #homeInsight .ins-home.is-note { border-left-color: var(--accent); }
+#homeInsight .ins-home.is-failing { border-left-color: var(--bad); }
 .ins-line .pe-kinds { min-width: 0; overflow-wrap: anywhere; }
 #homeInsight:not([hidden]) { margin: 8px 0 0; }
-.ins-sep { color: var(--muted); }
+#homeInsight:not([hidden]) + .home-zone { margin-top: 32px; }
 
 /* the count on the Suggestions rail link, as Human review's on Agents (human.css .hr-rail-count) */
 .ins-rail-count { position: absolute; top: -3px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;

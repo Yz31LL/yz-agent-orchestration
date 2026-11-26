@@ -168,13 +168,25 @@
 
   /** Home's one line: the same counts, shorter. */
   function homeHtml(sum) {
-    const h = sum?.health
-    const parts = []
-    if (h && h.enabled !== false && h.failing?.length) parts.push(`<a class="link" href="#/health">${plural(h.failing.length, 'health check')} failing</a>`)
-    else if (h && h.enabled !== false && h.degraded?.length) parts.push(`<a class="link" href="#/health">${plural(h.degraded.length, 'health check')} degraded</a>`)
+    const h = sum?.health && sum.health.enabled !== false ? sum.health : null
+    const failing = h?.failing?.length || 0
+    const degraded = h?.degraded?.length || 0
     const open = Number(sum?.suggestions?.open) || 0
-    if (open) parts.push(`<a class="link" href="#/suggestions">${plural(open, 'suggestion')} from Master</a>`)
-    return parts.length ? `<p class="pe-line ins-home" role="status"><i class="pe-dot ins-dot" aria-hidden="true"></i>${parts.join('<span class="ins-sep" aria-hidden="true">·</span>')}</p>` : ''
+    const words = []
+    const links = []
+    if (failing || degraded) {
+      words.push(failing ? `${plural(failing, 'health check')} failing` : `${plural(degraded, 'health check')} degraded`)
+      links.push('<a class="link" href="#/health">Open Health</a>')
+    }
+    if (open) {
+      words.push(`${plural(open, 'suggestion')} from Master`)
+      links.push('<a class="link" href="#/suggestions">Open suggestions</a>')
+    }
+    if (!words.length) return ''
+    // the same look as the Agents page lines: the first fact in bold, the rest beside it, the links at the end
+    const tone = failing ? 'is-failing' : degraded ? 'is-degraded' : 'is-note'
+    return `<p class="pe-line ins-line ins-home ${tone}" role="status"><i class="pe-dot ins-dot" aria-hidden="true"></i><b>${esc(words[0])}</b>` +
+      `${words[1] ? `<span class="pe-kinds">${esc(words[1])}</span>` : ''}<span class="pe-line-end">${links.join('')}</span></p>`
   }
 
   window.InsightView = { suggestionsHtml, healthHtml, linesHtml, homeHtml, whenText, SUGGESTIONS_HELP, HEALTH_HELP }

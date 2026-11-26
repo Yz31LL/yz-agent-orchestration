@@ -126,6 +126,7 @@ test('the Agents page lines: health grouped like the alerts with the paused refr
   assert.equal(V.linesHtml({ suggestions: { open: 0 }, health: { enabled: false, failing: [{ id: 'x', name: 'X' }], degraded: [] } }), '')
   assert.equal(V.linesHtml(null), '')
   const home = V.homeHtml(sum)
-  assert.match(home, /<a class="link" href="#\/health">1 health check failing<\/a><span class="ins-sep" aria-hidden="true">·<\/span><a class="link" href="#\/suggestions">2 suggestions from Master<\/a>/)
+  assert.match(home, /class="pe-line ins-line ins-home is-failing"[\s\S]*<b>1 health check failing<\/b><span class="pe-kinds">2 suggestions from Master<\/span><span class="pe-line-end"><a class="link" href="#\/health">Open Health<\/a><a class="link" href="#\/suggestions">Open suggestions<\/a><\/span>/)
+  assert.match(V.homeHtml({ suggestions: { open: 1 }, health: { enabled: true, failing: [], degraded: [] } }), /ins-home is-note"[\s\S]*<b>1 suggestion from Master<\/b><span class="pe-line-end"><a class="link" href="#\/suggestions">Open suggestions/)
   assert.equal(V.homeHtml({ suggestions: { open: 0 }, health: null }), '')
 })
