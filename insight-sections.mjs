@@ -50,7 +50,7 @@ function stateOf(sessions) {
  */
 export function pipelineData({ graph, status = null, settings = { agents: {} } }) {
   const left = []
-  if (!status) left.push('who is busy, idle or has no session: the dashboard is not running, so no session was read')
+  if (!status) left.push('who is busy, idle or has no session: no session list was read (no dashboard answered, or its first read is still running)')
   const agents = Array.isArray(status?.agents) ? status.agents : []
   const boxes = (graph?.nodes || []).map(n => {
     if (n.kind !== 'agent') return { label: n.label, role: n.role, kind: n.kind }

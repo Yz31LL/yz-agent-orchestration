@@ -154,7 +154,7 @@ function healthLines(d) {
   const lines = []
   if (!d.enabled) lines.push('The watchdog is off (config healing.enabled false): nothing is checked.')
   else if (!d.repairs) lines.push('Repairs are off (config healing.repairs false): the watchdog only reports.')
-  if (d.seenAt) lines.push(`As the watchdog last saw it, ${when(d.seenAt)}${d.stale ? ' (the dashboard is not running now)' : ''}:`)
+  if (d.seenAt) lines.push(`As the watchdog last saw it, ${when(d.seenAt)}${d.stale ? ' (no running dashboard answered this read)' : ''}:`)
   const checks = Array.isArray(d.checks) ? d.checks : []
   const worst = [...checks].sort((a, b) => rank(b.state) - rank(a.state))
   for (const c of worst) {
@@ -203,7 +203,10 @@ function inboxText(inbox, budget) {
   const since = inbox.readAt ? `since you last read (${when(inbox.readAt)})` : 'since the inbox began (you have not read it yet)'
   if (!items.length) return `Nothing new ${since}.`
   const lines = [`${items.length} new ${since}:`, ...[...items].reverse().map(i => `  ${when(i.at)} ${i.kind}: ${cut(i.text, 160)}`)]
-  return fit(lines, budget, 'inbox').join('\n')
+  const shown = fit(lines, budget, 'inbox')
+  // the inbox is no part of its own: what does not fit is the oldest, and the parts below say the same in full
+  if (/more line/.test(shown.at(-1))) shown[shown.length - 1] = `  … and ${lines.length - shown.length + 1} older: the parts below have them in full.`
+  return shown.join('\n')
 }
 
 /**
@@ -212,7 +215,7 @@ function inboxText(inbox, budget) {
  */
 export function renderDigest({ at, by = '', inbox = null, sections = {}, only = null, source = 'dashboard' }) {
   if (only) return sectionText(only, sections[only], null)
-  const head = `ORCHESTRATION DIGEST · ${when(at)}${by ? ` · read by ${by}` : ''}${source === 'files' ? ' · built from the files: the dashboard is not running' : ''}`
+  const head = `ORCHESTRATION DIGEST · ${when(at)}${by ? ` · read by ${by}` : ''}${source === 'files' ? ' · built from the files: no running dashboard answered' : ''}`
   const parts = [head, inboxText(inbox, BUDGET.inbox), ...SECTION_NAMES.map(n => sectionText(n, sections[n], BUDGET[n]))]
   return parts.join('\n\n')
 }

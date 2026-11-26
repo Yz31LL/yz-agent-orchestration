@@ -92,7 +92,7 @@ test('orchestration with no dashboard running: built from the files, the head sa
     config: CONFIG, ask: async () => null, mark: at => marks.push(at), now: () => Date.parse('2026-11-26T12:00:00.000Z'),
     files: () => ({ graph: () => graph, status: () => null, flows: () => [], prs: () => null, tokens: () => null, alerts: () => null, health: () => null, suggestions: () => ({ list: [], broken: false }), inbox: () => ({ items: [], readAt: null }) }),
   })
-  assert.match(r.out, /built from the files: the dashboard is not running/)
+  assert.match(r.out, /built from the files: no running dashboard answered/)
   assert.match(r.out, /Left out: who is busy, idle or has no session/)
   assert.match(r.out, /== HEALTH ==\nLeft out:/)
   assert.equal(marks.length, 1)

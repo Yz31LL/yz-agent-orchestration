@@ -123,7 +123,7 @@ test('a source that fails is named as left out, never invented; the parts that c
   assert.match(text, /== WORK ==\nLeft out: the flow files could not be read\./)
   assert.match(text, /== NUMBERS ==\nLeft out: the flow files could not be read\./)
   assert.match(text, /== HEALTH ==\nLeft out: the watchdog has not looked yet/)
-  assert.match(text, /Left out: who is busy, idle or has no session: the dashboard is not running/)
+  assert.match(text, /Left out: who is busy, idle or has no session: no session list was read/)
   assert.match(text, /Master \(coordinator\): state left out/)
   // pull requests: none read is not "0 open"
   const d2 = await gatherDigest(providers({ prs: () => null, alerts: () => null, tokens: () => null }), { now: NOW })
@@ -179,4 +179,15 @@ test('the inbox keeps only its newest lines (500 in the server)', () => {
   assert.ok(all.length <= 10, `${all.length} lines`)
   assert.equal(all.at(-1).text, 'alert 19')
   assert.equal(inbox.KEEP, 500)
+})
+
+test('a long inbox shows the newest items and says the older ones are in the parts below (the inbox has no --section)', async () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ at: iso(NOW - (30 - i) * 60_000), kind: 'alert', text: `Alert number ${i} with words enough to take room on the line, again and again.` }))
+  const d = await gatherDigest(providers({ inbox: () => ({ items, readAt: null }) }), { now: NOW })
+  const text = renderDigest(d)
+  assert.match(text, /^30 new since the inbox began/m)
+  assert.match(text, /alert: Alert number 29 /, 'the newest first')
+  assert.match(text, / {2}… and \d+ older: the parts below have them in full\./)
+  assert.doesNotMatch(text, /--section inbox/)
+  assert.ok(text.length <= DIGEST_MAX)
 })

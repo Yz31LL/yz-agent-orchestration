@@ -87,7 +87,7 @@ export function runSuggestions(cmd, f, { by }, { file = SUGGESTIONS_FILE, config
 // ═══ the digest ═══
 
 /** How long the CLI waits for the running dashboard before it builds the digest from the files itself. */
-const ASK_MS = 8000
+const ASK_MS = 15_000
 
 /**
  * The digest from the running dashboard: { at, inbox, sections } as GET /api/insight/digest answers it, or null when
