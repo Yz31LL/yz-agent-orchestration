@@ -94,13 +94,13 @@ test('deliveries: ok, degraded while one waits under 30 minutes, failing past 30
 
 // ═══ 3. stores ═══
 
-const STORE = name => ({ name, label: name, exists: true, parses: true, sig: '10:1', rebuild: null })
+const STORE = name => ({ name, label: `The ${name.split('.')[0]}`, exists: true, parses: true, sig: '10:1', rebuild: null })
 test('stores: ok when all read, failing for one that does not parse (copy and rebuild asked once per damaged version), degraded for a long token build', () => {
   assert.equal(storesCheck({ files: [STORE('lessons.json'), { ...STORE('suggestions.json'), exists: false }], now: NOW }).state, 'ok')
   const bad = storesCheck({ files: [{ ...STORE('token-index.json'), parses: false, error: 'Unexpected end of JSON input', rebuild: 'token' }, { ...STORE('lessons.json'), parses: false }], now: NOW })
   assert.equal(bad.state, 'failing')
-  assert.match(bad.text, /token-index\.json does not parse \(Unexpected end of JSON input\)\. The dashboard rebuilds it/)
-  assert.match(bad.text, /lessons\.json does not parse\. A copy of it is kept beside it; it cannot be rebuilt/)
+  assert.match(bad.text, /The file token-index\.json \(the token-index\) does not parse: Unexpected end of JSON input\. The dashboard rebuilds it/)
+  assert.match(bad.text, /The file lessons\.json \(the lessons\) does not parse\. A copy of it is kept beside it; it cannot be rebuilt/)
   assert.equal(bad.repair.id, 'copy-rebuild')
   assert.equal(bad.repair.target, 'token-index.json,lessons.json')
   const copied = storesCheck({ files: [{ ...STORE('lessons.json'), parses: false }], copied: { 'lessons.json': '10:1' }, now: NOW })

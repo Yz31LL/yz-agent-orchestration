@@ -73,7 +73,7 @@ export function diskCheck({ items = [], biggest = [], limits = DISK_LIMITS }) {
     state,
     text: over.length
       ? `${over.map(i => `${i.label} is ${sizeText(i.bytes)} (past ${sizeText(limits[i.key])})`).join('; ')}.${big ? ` The biggest: ${big}.` : ''} Nothing is deleted by itself.`
-      : `Sizes are sensible: ${items.map(i => `${i.label} ${sizeText(i.bytes)}`).join(', ') || 'nothing written yet'}.`,
+      : `Sizes are sensible: ${items.map(i => `${i.label.replace(/^The /, 'the ')} ${sizeText(i.bytes)}`).join(', ') || 'nothing written yet'}.`,
     saw: items.map(i => `${i.key} ${sizeText(i.bytes)}`).join(', '),
     extra: { items, biggest: biggest.slice(0, 5) },
   }
@@ -105,7 +105,7 @@ export function serverCheck({ minutes = [], delay = DELAY }) {
   return {
     state,
     text: state === 'ok'
-      ? `The server answers in time${minutes.length ? ` (the slowest moment in the last minute held it ${Math.round(minutes.at(-1).maxMs)} ms)` : ''}.`
+      ? `The server answers in time${minutes.length ? ` (in the last minute it was held up at most ${Math.round(minutes.at(-1).p99Ms)} ms, 99 times in 100)` : ''}.`
       : `The page may feel frozen: for ${delay.minutes} minutes the server was held up to ${Math.round(peak)} ms at a time.${slow ? ` The slowest work: ${slow.what} (${(slow.ms / 1000).toFixed(1)} s).` : ''} Nothing is repaired by itself; restart the dashboard if it goes on.`,
     saw: last.map(m => `${Math.round(m.p99Ms)} ms`).join(', ') || 'no minute measured yet',
   }

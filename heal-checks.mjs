@@ -145,7 +145,8 @@ export function deliveriesCheck({ waiting = [], fails = [], now }) {
 export function storesCheck({ files = [], copied = {}, tokenBuild = null, now }) {
   const bad = files.filter(f => f.exists && !f.parses)
   const states = bad.map(() => 'failing')
-  const parts = bad.map(f => `${f.label} does not parse${f.error ? ` (${cutText(f.error, 80)})` : ''}. ${f.rebuild ? 'The dashboard rebuilds it from its sources and keeps a copy of the damaged file beside it.' : 'A copy of it is kept beside it; it cannot be rebuilt from other files, so check it by hand.'}`)
+  // named by its file, which reads the same for one store or many (`lessons.json does not parse`)
+  const parts = bad.map(f => `The file ${f.name} (${f.label.replace(/^The /, 'the ')}) does not parse${f.error ? `: ${cutText(f.error, 80)}` : ''}. ${f.rebuild ? 'The dashboard rebuilds it from its sources and keeps a copy of the damaged file beside it.' : 'A copy of it is kept beside it; it cannot be rebuilt from other files, so check it by hand.'}`)
   if (tokenBuild?.building && Number.isFinite(timeOf(tokenBuild.startedAt)) && now - timeOf(tokenBuild.startedAt) > TOKEN_BUILD_MS) {
     states.push('degraded')
     parts.push(`The token index has been building for ${mins(now - timeOf(tokenBuild.startedAt))}: Pipeline tokens and the alerts wait for it.`)
@@ -153,7 +154,7 @@ export function storesCheck({ files = [], copied = {}, tokenBuild = null, now })
   const todo = bad.filter(f => copied[f.name] !== f.sig)
   return {
     state: worst(states),
-    text: parts.length ? parts.join(' ') : `Every store reads: ${files.filter(f => f.exists).map(f => f.label).join(', ') || 'none written yet'}.`,
+    text: parts.length ? parts.join(' ') : `Every store reads: ${files.filter(f => f.exists).map(f => f.label.replace(/^The /, 'the ')).join(', ') || 'none written yet'}.`,
     saw: files.map(f => `${f.name}: ${!f.exists ? 'none yet' : f.parses ? 'reads' : 'damaged'}`).join(', '),
     ...(todo.length ? { repair: { id: 'copy-rebuild', target: todo.map(f => f.name).join(','), what: `Kept a copy of ${todo.map(f => f.label.replace(/^The /, 'the ')).join(', ')} and ${todo.some(f => f.rebuild) ? 'rebuilt what can be rebuilt' : 'reported it'}.` } } : {}),
     extra: { damaged: bad.map(f => ({ name: f.name, label: f.label, rebuild: !!f.rebuild })) },

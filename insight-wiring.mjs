@@ -140,7 +140,7 @@ export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenR
       return diskFacts({ dataDir: DATA_DIR, logs: [...new Set([...logs, restartLogFile()])] })
     },
     config: async () => configFacts({ file: CONFIG_FILE, readers: CONFIG_READERS, unwrap: raw => projectRaw(raw, PROJECTS, CURRENT_PROJECT) }),
-    agents: async () => ({ status: cachedStatus(), coordinator: CONFIG.coordinatorLabel, cli: FACTORY_CLI }),
+    agents: async () => ({ status: status(), coordinator: CONFIG.coordinatorLabel, cli: FACTORY_CLI }), // the first read kicked in the background
   }
   const actions = makeRepairs({
     sources: { pause }, relay, restartLoop, stores: STORES, stateFile: HEAL_STATE_FILE,
