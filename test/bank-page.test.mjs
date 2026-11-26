@@ -51,7 +51,7 @@ test('the shell wires it: a title, a section, the page object, an icon, a rail l
   assert.match(shell, /bank: 'bankView'/)
   assert.match(shell, /bank: 'BankPage'/)
   const agents = shellWindow.RailGroups.groups().find(g => g.id === 'agents').entries
-  assert.equal(agents.map(e => e.view).join(' '), 'agents subagents bank routing')
+  assert.equal(agents.map(e => e.view).join(' '), 'agents subagents bank routing health') // Health (insight-pages.js) ends the group
   const bank = shellWindow.RailGroups.linkFor('bank')
   assert.equal(bank.href, '#/bank')
   assert.equal(bank.label, 'Orchestration bank')
