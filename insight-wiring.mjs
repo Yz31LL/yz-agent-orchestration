@@ -84,10 +84,14 @@ export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenR
   const healing = healingSettings(CONFIG.healing, () => {})
   const insight = insightSettings(CONFIG.insight, () => {})
   const graph = () => pipelineGraph(CONFIG)
+  // the server drops its status cache after each fetch of origin (every 5 minutes): the last one seen is kept, so the
+  // digest and the Agents check do not flip to "not read" between two reads (it is at most a few minutes old)
+  let lastStatus = null
   const status = () => {
     const s = cachedStatus()
-    if (!s) getStatus().catch(() => {}) // the first read, in the background: the digest never waits on a scan
-    return s
+    if (s) lastStatus = s
+    else getStatus().catch(() => {}) // a fresh read, in the background: the digest never waits on a scan
+    return s || lastStatus
   }
   const procs = procsFor(HERE)
   const storeCache = new Map()

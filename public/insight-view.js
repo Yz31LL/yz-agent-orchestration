@@ -113,8 +113,7 @@
     if (c.id === 'agents' && (x.nudges || []).length) {
       return `<div class="ins-acts">${x.nudges.map((n, i) => `<button type="button" data-heal-nudge="${i}" title="Copies a sentence to paste into that session. It sends nothing.">Copy a nudge for ${esc(n.agent)}</button>`).join('')}</div>`
     }
-    if (c.id === 'config' && (x.warnings || []).length) return `<ul class="ins-rows ins-plain">${x.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>`
-    if (c.id === 'disk' && (x.biggest || []).length && c.state !== 'ok') return `<ul class="ins-rows ins-plain">${x.biggest.map(b => `<li>${esc(b.name)}</li>`).join('')}</ul>`
+    // config and disk say everything in their text: their warnings and biggest items are not listed twice
     void now
     return ''
   }
