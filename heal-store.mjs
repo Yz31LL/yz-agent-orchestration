@@ -72,11 +72,11 @@ export function readHealLog(file = HEAL_LOG_FILE) {
 }
 
 /** One repair line; never throws (a failed write is logged). */
-export function appendHealLog(line, { file = HEAL_LOG_FILE, log = console.error } = {}) {
+export function appendHealLog(line, { file = HEAL_LOG_FILE, log = console.error, keep = LOG_KEEP, trimAt = TRIM_AT } = {}) {
   const l = { at: line.at || new Date().toISOString(), check: line.check, name: line.name || line.check, saw: String(line.saw ?? '').slice(0, 600), did: String(line.did ?? '').slice(0, 600), result: line.result || 'done' }
   try {
     const all = readHealLog(file)
-    if (all.length + 1 > LOG_KEEP + TRIM_AT) writeAtomic(file, [...all.slice(-(LOG_KEEP - 1)), l].map(x => JSON.stringify(x)).join('\n') + '\n')
+    if (all.length + 1 > keep + trimAt) writeAtomic(file, [...all.slice(-(keep - 1)), l].map(x => JSON.stringify(x)).join('\n') + '\n')
     else {
       mkdirSync(path.dirname(file), { recursive: true })
       appendFileSync(file, JSON.stringify(l) + '\n')

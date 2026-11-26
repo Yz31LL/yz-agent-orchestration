@@ -39,10 +39,12 @@ test('the repair log: one line per repair, torn lines skipped, the newest kept',
   assert.equal(all.length, 2)
   assert.equal(all[0].name, 'Paid ticket refresh')
   assert.equal(all[1].name, 'loops')
-  for (let i = 0; i < H.LOG_KEEP + 201; i++) H.appendHealLog({ at: new Date(NOW + i).toISOString(), check: 'x', did: `${i}` }, { file })
+  // a small keep, so the test does not write a thousand lines (each append is a real file write)
+  for (let i = 0; i < 20; i++) H.appendHealLog({ at: new Date(NOW + i).toISOString(), check: 'x', did: `${i}` }, { file, keep: 5, trimAt: 5 })
   const kept = H.readHealLog(file)
-  assert.ok(kept.length <= H.LOG_KEEP + 200)
-  assert.equal(kept.at(-1).did, String(H.LOG_KEEP + 200))
+  assert.ok(kept.length <= 10, `${kept.length} lines`)
+  assert.equal(kept.at(-1).did, '19')
+  assert.equal(H.LOG_KEEP, 1000)
 })
 
 test('healthFromFiles: the last look marked stale, the repairs of the last 24 hours newest first, none when it never looked', () => {

@@ -171,10 +171,12 @@ test('the inbox: items after the read marker are new; marking read moves it, and
   assert.equal(inbox.readInboxState(stateFile).readAt, iso(NOW - 1000), 'the marker is kept')
 })
 
-test('the inbox keeps its newest 500 lines', () => {
+test('the inbox keeps only its newest lines (500 in the server)', () => {
   const file = path.join(TMP, 'inbox-big', 'master-inbox.jsonl')
-  for (let i = 0; i < inbox.KEEP + 101; i++) inbox.appendInbox({ kind: 'alert', text: `alert ${i}` }, { file, now: NOW + i })
+  // a small keep, so the test does not write 600 lines (each append is a real file write)
+  for (let i = 0; i < 20; i++) inbox.appendInbox({ kind: 'alert', text: `alert ${i}` }, { file, now: NOW + i, keep: 5, trimAt: 5 })
   const all = inbox.readInbox(file)
-  assert.ok(all.length <= inbox.KEEP + 100)
-  assert.equal(all.at(-1).text, `alert ${inbox.KEEP + 100}`)
+  assert.ok(all.length <= 10, `${all.length} lines`)
+  assert.equal(all.at(-1).text, 'alert 19')
+  assert.equal(inbox.KEEP, 500)
 })

@@ -85,14 +85,14 @@ const writeState = (s, file) => writeAtomic(file, JSON.stringify(s, null, 1))
  * Append one item; returns it, or null when it was not added (an unknown kind, no text, a `key` already in the inbox,
  * or a failed write, which is logged).
  */
-export function appendInbox({ kind, text, key } = {}, { file = INBOX_FILE, now = Date.now(), log = console.error } = {}) {
+export function appendInbox({ kind, text, key } = {}, { file = INBOX_FILE, now = Date.now(), log = console.error, keep = KEEP, trimAt = TRIM_AT } = {}) {
   const t = oneLine(text).slice(0, TEXT_MAX)
   if (!INBOX_KINDS.includes(kind) || !t) return null
   try {
     const all = readInbox(file)
     if (typeof key === 'string' && all.some(i => i.key === key)) return null
     const item = { id: `m${randomBytes(4).toString('hex')}`, at: new Date(now).toISOString(), kind, text: t, ...(typeof key === 'string' ? { key } : {}) }
-    if (all.length + 1 > KEEP + TRIM_AT) writeAtomic(file, [...all.slice(-(KEEP - 1)), item].map(i => JSON.stringify(i)).join('\n') + '\n')
+    if (all.length + 1 > keep + trimAt) writeAtomic(file, [...all.slice(-(keep - 1)), item].map(i => JSON.stringify(i)).join('\n') + '\n')
     else {
       mkdirSync(path.dirname(file), { recursive: true })
       appendFileSync(file, JSON.stringify(item) + '\n')
