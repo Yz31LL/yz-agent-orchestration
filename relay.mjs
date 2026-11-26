@@ -38,6 +38,13 @@
 // a session its items go in one turn, which stamps them sent. A presence check that fails or cannot tell lets the
 // turn run, as before. A restart forgets the waiting items; their stamped reason stays, and the page offers its retry.
 //
+// THE WATCHDOG'S HOLD (heal-checks.mjs hold-deliveries, heal-runner.mjs): `health()` says which agents have items
+// waiting for a session (and since when) and how many paid turns to each failed in a row. After 3 failures in a row the
+// watchdog calls `hold(agent)`: from then on that agent's items are kept, stamped not delivered with the reason
+// (HELD), and NO paid turn runs for it, until the user presses Release on the Health page (`release(agent)`: one turn
+// for everything held) or Retry on a flow (deliverNow, which always runs). A success clears the count and the hold.
+// The hold is in memory only, like the queue.
+//
 // Rules this file keeps:
 // - `queue` runs AFTER the answer route has sent its 200, so it never throws
 //   and the delivery promise never rejects: every failure lands in the node's
@@ -76,6 +83,8 @@ const DEFAULT_DELAY_MS = 30_000
 const DEFAULT_WAIT_MS = 60_000
 /** The reason a delivery waits: the agent has no session open (see the header). */
 export const noSession = agent => `${agent} has no session open; it is sent when one opens.`
+/** The reason a delivery is kept back after the watchdog held its agent (see the header). */
+export const held = agent => `The deliveries to ${agent} failed 3 times in a row, so they are held with no paid turn. Press Release on the Health page, or Retry here.`
 /** What the startup sweep writes on an answer the restart lost (see sweep). */
 export const RESTARTED = 'not sent: the dashboard restarted'
 /** How long the page shows a request as requested (public/flow-output.js FRESH_MS): older ones are not swept. */
@@ -374,7 +383,7 @@ function stamp(entries, outcome, at) {
 // ═══ The queue ═══
 
 /**
- * makeRelay({ run, now?, delayMs?, present?, waitMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }.
+ * makeRelay({ run, now?, delayMs?, present?, waitMs? }) -> { queue, queueStatus, queueRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep, hold, release, health }.
  * `run(prompt)` resolves { ok, out, err }; it may reject, which counts as a failure.
  */
 export function makeRelay({ run, now = () => new Date().toISOString(), delayMs = DEFAULT_DELAY_MS, present = null, waitMs = DEFAULT_WAIT_MS }) {
@@ -402,8 +411,15 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
   }
   /** agent -> items waiting for a session to open (see the header); one timer asks again for all of them. */
   const waiting = new Map()
+  /** agent -> when its oldest waiting item started to wait (ISO), for the watchdog (health()). */
+  const waitingSince = new Map()
+  /** agent -> { count, lastError, lastAt }: paid turns to it that failed in a row; a success clears it. */
+  const fails = new Map()
+  /** agent -> the items kept back after the watchdog held it (see the header). */
+  const holds = new Map()
   let waitTimer = null
   function wait(agent, items) {
+    if (!waitingSince.has(agent)) waitingSince.set(agent, now())
     const list = waiting.get(agent) || []
     for (const i of items) if (!list.some(x => x.flowId === i.flowId && x.nodeId === i.nodeId && x.kind === i.kind && x.term === i.term)) list.push(i)
     waiting.set(agent, list)
@@ -412,6 +428,7 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
       for (const [a, list] of [...waiting]) {
         if (!(await isPresent(a))) continue
         waiting.delete(a)
+        waitingSince.delete(a)
         void deliver(a, list)
       }
       if (!waiting.size) {
@@ -422,8 +439,30 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     waitTimer.unref?.()
   }
 
-  /** One turn for `agent` with every item still answered; resolves { ok, error? } and never rejects. */
-  async function deliver(agent, items) {
+  /** Keep `items` for a held agent, once each. */
+  function keep(agent, items) {
+    const list = holds.get(agent) || []
+    for (const i of items) if (!list.some(x => x.flowId === i.flowId && x.nodeId === i.nodeId && x.kind === i.kind && x.term === i.term)) list.push(i)
+    holds.set(agent, list)
+  }
+  /** A paid turn's outcome for the watchdog: a success clears the count (and a hold, sending what it kept). */
+  function noteTurn(agent, outcome) {
+    if (!outcome.ok) {
+      const f = fails.get(agent)
+      fails.set(agent, { count: (f?.count || 0) + 1, lastError: outcome.error, lastAt: now() })
+      return
+    }
+    fails.delete(agent)
+    const rest = holds.get(agent)
+    holds.delete(agent)
+    if (rest?.length) void deliver(agent, rest)
+  }
+
+  /**
+   * One turn for `agent` with every item still answered; resolves { ok, error? } and never rejects. `force` (the
+   * user's Retry, Release) runs it even while the agent is held.
+   */
+  async function deliver(agent, items, { force = false } = {}) {
     running++
     try {
       const entries = []
@@ -438,7 +477,10 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
       if (!entries.length) return record(fail(skipped || 'nothing to deliver'))
       let outcome
       if (!agent) outcome = fail('the flow names no agent to send the answer to')
-      else if (!(await isPresent(agent))) {
+      else if (!force && holds.has(agent)) {
+        outcome = fail(held(agent)) // no turn: the watchdog held it after 3 paid failures (see the header)
+        keep(agent, items)
+      } else if (!(await isPresent(agent))) {
         outcome = fail(noSession(agent)) // no turn: it could only fail, and it would still cost (see the header)
         wait(agent, items)
       } else {
@@ -449,6 +491,7 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
           r = { ok: false, out: '', err: err?.message || String(err) }
         }
         outcome = judge(r)
+        noteTurn(agent, outcome)
       }
       return record(outcome, stamp(entries, outcome, now()))
     } catch (err) {
@@ -533,7 +576,31 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     } catch (err) {
       return record(fail(err?.message || String(err)))
     }
-    return deliver(agent, [{ flowId, nodeId, kind: 'answer' }])
+    return deliver(agent, [{ flowId, nodeId, kind: 'answer' }], { force: true })
+  }
+
+  /** The watchdog's hold (heal-runner.mjs): from now on no paid turn runs for `agent` until release. */
+  function hold(agent) {
+    if (!agent || holds.has(agent)) return false
+    holds.set(agent, [])
+    return true
+  }
+  /** The user's Release: the count starts again, and everything kept goes in one turn. Resolves how many were sent. */
+  async function release(agent) {
+    const items = holds.get(agent)
+    if (!items) return { released: false, items: 0 }
+    holds.delete(agent)
+    fails.delete(agent)
+    if (items.length) await deliver(agent, items, { force: true })
+    return { released: true, items: items.length }
+  }
+  /** For the watchdog: who waits for a session (since when, how many items) and whose paid turns failed in a row. */
+  function health() {
+    const agents = new Set([...fails.keys(), ...holds.keys()])
+    return {
+      waiting: [...waiting].map(([agent, list]) => ({ agent, since: waitingSince.get(agent) || now(), items: list.length })),
+      fails: [...agents].map(agent => ({ agent, count: fails.get(agent)?.count || 0, lastError: fails.get(agent)?.lastError || '', held: holds.has(agent), heldItems: holds.get(agent)?.length || 0 })),
+    }
   }
 
   function status() {
@@ -582,5 +649,5 @@ export function makeRelay({ run, now = () => new Date().toISOString(), delayMs =
     return marked
   }
 
-  return { queue, queueStatus, queueRequest, queueHandRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep }
+  return { queue, queueStatus, queueRequest, queueHandRequest, queueQuestion, queueDeleted, queueRework, drop, deliverNow, status, sweep, hold, release, health }
 }
