@@ -56,8 +56,12 @@ test('refresh: after a restart (no history) 3 paid turns with no new fetch are f
 })
 
 test('refresh: after Resume the old turns are not held against it again, but the cost since it last worked still counts', () => {
+  // fetched 2 minutes before the 10 paid turns: not stale, so after Resume it works until a turn says otherwise
+  const fresh = refreshCheck({ collections: [{ ...COL, fetchedAt: iso(NOW - 40 * MIN), resumedAt: iso(NOW - 30 * MIN) }], spend: paid(1, NOW - 50 * MIN) })
+  assert.equal(fresh.state, 'ok')
   const r = refreshCheck({ collections: [{ ...COL, resumedAt: iso(NOW - 30 * MIN) }], spend: paid(10, NOW - 5 * H) })
-  assert.equal(r.state, 'ok')
+  assert.notEqual(r.state, 'failing', 'not paused again by the turns before Resume')
+  assert.equal(r.repair, undefined)
   const again = refreshCheck({ collections: [{ ...COL, resumedAt: iso(NOW - 70 * MIN) }], spend: paid(10, NOW - 5 * H).concat(paid(3, NOW - 60 * MIN)) })
   assert.equal(again.state, 'failing')
   assert.match(again.text, /cost \$0\.40 since it last worked/)
@@ -196,4 +200,31 @@ test('agents: a busy session silent for 30 minutes and a coordinator with no ses
   assert.deepEqual(r.extra.nudges.map(n => n.agent), ['Agent 1', 'Master'])
   assert.match(r.extra.nudges[1].text, /node C:\/d\/tools\/factory\.mjs orchestration --by "Master"/)
   assert.equal(r.repair, undefined)
+})
+
+test('refresh: after Resume and a restart, a fetch older than 3 refreshes with paid turns since is never called working', () => {
+  // QA, 2026-11-27: fetchedAt 15 days old, 300 paid turns since, Resume pressed, the dashboard restarted: it said works
+  const col = { ...COL, fetchedAt: iso(NOW - 15 * 24 * H), resumedAt: iso(NOW - 10 * MIN) }
+  const r = refreshCheck({ collections: [col], spend: paid(300, NOW - 14 * 24 * H, 0.03), now: NOW })
+  assert.equal(r.state, 'degraded')
+  assert.match(r.text, /^The ticket refresh has brought no new tickets since 11 Nov: 300 paid turns since then cost \$9\.00\. You pressed Resume, so those are not held against it: it pauses itself again after 3 failures in a row\.$/)
+  assert.equal(r.repair, undefined, 'Resume is the user word: it is not paused again for the turns before it')
+  assert.equal(r.extra.collections[0].failures, 300, 'counted as failures')
+  // within 3 refreshes of the last fetch it is not stale yet
+  assert.equal(refreshCheck({ collections: [{ ...col, fetchedAt: iso(NOW - 50 * MIN) }], spend: paid(2, NOW - 45 * MIN), now: NOW }).state, 'ok')
+  // and with no paid turn since the fetch there is nothing to count
+  assert.equal(refreshCheck({ collections: [col], spend: [], now: NOW }).state, 'ok')
+})
+
+test('refresh: once a day (refreshMinutes 1440) the words say so, and 3 failures in a row take 3 days', () => {
+  // the live config refreshes once a day since 2026-11-27
+  const daily = { ...COL, everyMinutes: 1440, fetchedAt: iso(NOW - 2 * 24 * H) }
+  const ok = refreshCheck({ collections: [{ ...daily, fetchedAt: iso(NOW - H), history: [{ at: iso(NOW - H), ok: true }] }], now: NOW })
+  assert.match(ok.text, /works \(Production checklist once a day\)/)
+  const one = refreshCheck({ collections: [{ ...daily, history: [{ at: iso(NOW - H), ok: false, message: 'API Error: 401' }] }], spend: paid(1, NOW - H), now: NOW })
+  assert.equal(one.state, 'degraded')
+  assert.match(one.text, /failed 1 time in a row\. Once a day, 3 failures in a row take 3 days before it pauses itself\. The last error: API Error: 401$/)
+  const three = refreshCheck({ collections: [{ ...daily, history: [1, 2, 3].map(i => ({ at: iso(NOW - (4 - i) * 24 * H), ok: false, message: 'x' })) }], spend: paid(3, NOW - 3 * 24 * H + MIN), now: NOW })
+  assert.match(three.text, /failed 3 times and is still running once a day\./)
+  assert.match(refreshCheck({ collections: [{ ...COL, everyMinutes: 120, fetchedAt: iso(NOW - H), history: [{ at: iso(NOW - H), ok: true }] }], now: NOW }).text, /every 2 hours/)
 })

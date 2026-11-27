@@ -31,6 +31,15 @@ export const SILENT_TIMES = 5
 export const TOKEN_BUILD_MS = 30 * 60_000
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const dayText = ms => `${new Date(ms).getDate()} ${MONTHS[new Date(ms).getMonth()]}`
+/** How often a timer refreshes, in words: every 20 minutes, every 2 hours, once a day (the live config since 2026-11-27). */
+export function everyText(minutes) {
+  if (minutes === 1440) return 'once a day'
+  if (minutes > 0 && minutes % 1440 === 0) return `every ${minutes / 1440} days`
+  if (minutes > 0 && minutes % 60 === 0) return `every ${plural(minutes / 60, 'hour')}`
+  return `every ${plural(minutes, 'minute')}`
+}
 const usd = n => `$${(Number.isFinite(n) ? n : 0).toFixed(2)}`
 const mins = ms => {
   const m = Math.round(ms / 60_000)
@@ -50,13 +59,23 @@ const cutText = (s, n = 200) => {
 
 // ═══ 1. Paid ticket refresh failing ═══
 
+/** A fetch older than this many refresh intervals, with paid turns since, is never called working (see refreshOne). */
+export const STALE_TIMES = 3
+
 /**
  * One collection's refresh, from its facts: { id, name, everyMinutes, paused, history: [{ at, ok, message }] (in
  * memory, oldest first), fetchedAt (the source file's), resumedAt (the user's Resume, kept in heal-state.json) }, and
  * the refresh spend lines [{ at, usd, collection? }]. A line with no collection counts for every collection only when
  * there is ONE collection on a timer (lines from before the dashboard named the collection).
+ *
+ * ⚠️ AFTER RESUME AND A RESTART: the outcomes are in memory only, and Resume forgives the paid turns before it (they
+ * are not held against it again, so Resume is not undone by a pause at once). With nothing since, it used to say the
+ * refresh works although its fetch was 15 days old (QA, 2026-11-27). Now a fetch older than STALE_TIMES intervals
+ * with paid turns since it counts those turns as failures and is DEGRADED with what they cost; the pause still waits
+ * for 3 failures after the Resume.
+ * Once a day (refreshMinutes 1440), 3 failures in a row take 3 days: the degraded line says so.
  */
-function refreshOne(c, spend, alone) {
+function refreshOne(c, spend, alone, now) {
   const fetched = timeOf(c.fetchedAt)
   const resumed = timeOf(c.resumedAt)
   const from = Math.max(fetched ?? -Infinity, resumed ?? -Infinity)
@@ -74,25 +93,32 @@ function refreshOne(c, spend, alone) {
   if (failures >= FAIL_RUN) {
     const text = c.paused
       ? `The ticket refresh${of} failed ${failures} times and is paused. It has cost ${usd(cost)} since it last worked.${error}`
-      : `The ticket refresh${of} failed ${failures} times and is still running every ${plural(c.everyMinutes, 'minute')}. It has cost ${usd(cost)} since it last worked.${error}`
+      : `The ticket refresh${of} failed ${failures} times and is still running ${everyText(c.everyMinutes)}. It has cost ${usd(cost)} since it last worked.${error}`
     return { state: 'failing', text, cost, failures, lastError, pause: !c.paused }
   }
   if (c.paused) return { state: 'degraded', text: `The ticket refresh${of} is paused. Press Resume to start it again.`, cost, failures, lastError, pause: false }
-  if (failures > 0) return { state: 'degraded', text: `The ticket refresh${of} failed ${plural(failures, 'time')} in a row.${error}`, cost, failures, lastError, pause: false }
+  const stale = Number.isFinite(now) && fetched !== null && c.everyMinutes > 0 && now - fetched > STALE_TIMES * c.everyMinutes * 60_000
+  if (stale && resumed !== null && sinceWorked.length > 0 && history.length === 0) {
+    const text = `The ticket refresh${of} has brought no new tickets since ${dayText(fetched)}: ${plural(sinceWorked.length, 'paid turn')} since then cost ${usd(cost)}. You pressed Resume, so those are not held against it: it pauses itself again after ${FAIL_RUN} failures in a row.`
+    return { state: 'degraded', text, cost, failures: sinceWorked.length, lastError, pause: false }
+  }
+  // a slow timer: say how long 3 failures take, so a degraded line for days is not a surprise
+  const pace = c.everyMinutes >= 60 ? ` ${everyText(c.everyMinutes).replace(/^./, ch => ch.toUpperCase())}, ${FAIL_RUN} failures in a row take ${mins(FAIL_RUN * c.everyMinutes * 60_000)} before it pauses itself.` : ''
+  if (failures > 0) return { state: 'degraded', text: `The ticket refresh${of} failed ${plural(failures, 'time')} in a row.${pace}${error}`, cost, failures, lastError, pause: false }
   return { state: 'ok', text: '', cost, failures, lastError, pause: false }
 }
 
-export function refreshCheck({ collections = [], spend = [] } = {}) {
+export function refreshCheck({ collections = [], spend = [], now } = {}) {
   const timed = collections.filter(c => c.everyMinutes > 0 || c.paused)
   if (!timed.length) return { state: 'ok', text: 'No ticket refresh runs on a timer.', saw: 'no collection with refreshMinutes above 0', extra: { collections: [] } }
   const alone = timed.length === 1
-  const rows = timed.map(c => ({ c, r: refreshOne(c, spend.filter(l => l.kind === undefined || l.kind === 'refresh'), alone) }))
+  const rows = timed.map(c => ({ c, r: refreshOne(c, spend.filter(l => l.kind === undefined || l.kind === 'refresh'), alone, now) }))
   const state = worst(rows.map(x => x.r.state))
   const bad = rows.filter(x => x.r.state !== 'ok')
   const toPause = rows.find(x => x.r.pause)
   return {
     state,
-    text: bad.length ? bad.map(x => x.r.text).join(' ') : `The ticket refresh works (${timed.map(c => `${c.name} every ${plural(c.everyMinutes, 'minute')}`).join(', ')}).`,
+    text: bad.length ? bad.map(x => x.r.text).join(' ') : `The ticket refresh works (${timed.map(c => `${c.name} ${everyText(c.everyMinutes)}`).join(', ')}).`,
     saw: rows.map(({ c, r }) => `${c.id}: ${r.failures} failed, ${usd(r.cost)} since it last worked, ${c.paused ? 'paused' : 'running'}`).join('; '),
     ...(toPause ? { repair: { id: 'pause-refresh', target: toPause.c.id, what: `Paused the timer of ${toPause.c.name}. It cost ${usd(toPause.r.cost)} since it last worked.` } } : {}),
     extra: { collections: rows.map(({ c, r }) => ({ id: c.id, name: c.name, paused: !!c.paused, failures: r.failures, cost: r.cost, lastError: r.lastError, state: r.state })) },
