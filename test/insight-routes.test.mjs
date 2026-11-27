@@ -155,9 +155,17 @@ test('the watchdog: switch, Resume (kept so old turns are not held against it), 
   assert.equal(stopped.status, 200)
   assert.deepEqual(calls.stop.at(-1), [7, '2026-11-26T01:00:00Z'])
   assert.match(calls.records.at(-1).did, /Stopped the copy on port 4497 in C:\/d\/\.worktrees\/x\./)
-  const gone = await post('/api/heal/stop', { pid: 8 })
+  const gone = await post('/api/heal/stop', { pid: 8, startedAt: '2026-11-26T01:00:00Z' })
   assert.equal(gone.status, 409)
   assert.equal((await gone.json()).error, 'That copy is not running any more.')
+  // no start time: refused before anything is listed or stopped (QA, 2026-11-27)
+  const stops = calls.stop.length
+  for (const startedAt of [undefined, '', 5]) {
+    const r = await post('/api/heal/stop', { pid: 7, startedAt })
+    assert.equal(r.status, 400)
+    assert.match((await r.json()).error, /when it started/)
+  }
+  assert.equal(calls.stop.length, stops)
   const before = calls.runs
   assert.equal((await post('/api/heal/run', {})).status, 200)
   assert.equal(calls.runs, before + 1)

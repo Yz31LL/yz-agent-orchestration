@@ -49,11 +49,12 @@ test('which processes are dashboard servers, with their folder, and which may be
 test('stop: only on a fresh listing, only a copy of this repo or a worktree, the same start time, never this server', async () => {
   const killed = []
   const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 100 })
-  assert.match((await procs.stop(100)).error, /That is this dashboard/)
-  assert.match((await procs.stop(103)).error, /not a copy of this dashboard/)
-  assert.match((await procs.stop(102)).error, /not a copy of this dashboard/)
-  assert.match((await procs.stop(999)).error, /not running any more/)
-  assert.match((await procs.stop('x')).error, /Say which copy/)
+  const AT = '2026-11-26T01:00:00.0000000Z'
+  assert.match((await procs.stop(100, AT)).error, /That is this dashboard/)
+  assert.match((await procs.stop(103, AT)).error, /not a copy of this dashboard/)
+  assert.match((await procs.stop(102, AT)).error, /not a copy of this dashboard/)
+  assert.match((await procs.stop(999, AT)).error, /not running any more/)
+  assert.match((await procs.stop('x', AT)).error, /Say which copy/)
   assert.match((await procs.stop(101, '2026-11-26T09:00:00.0000000Z')).error, /now belongs to another process/)
   assert.deepEqual(killed, [], 'nothing stopped so far')
   const ok = await procs.stop(101, '2026-11-25T20:00:00.0000000Z')
@@ -62,7 +63,15 @@ test('stop: only on a fresh listing, only a copy of this repo or a worktree, the
   assert.deepEqual(killed, [101])
   // a kill that fails says so in plain words
   const denied = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: () => { throw Object.assign(new Error('x'), { code: 'EPERM' }) }, here: HERE, selfPid: 1 })
-  assert.match((await denied.stop(101)).error, /Windows did not allow it/)
+  assert.match((await denied.stop(101, '2026-11-25T20:00:00.0000000Z')).error, /Windows did not allow it/)
+})
+
+test('stop: refused without the start time the page showed, so a pid given to another process since is never stopped', async () => {
+  // QA, 2026-11-27: with no startedAt sent, the start-time check was skipped
+  const killed = []
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 1 })
+  for (const at of [undefined, '', null, 42, '   ']) assert.match((await procs.stop(101, at)).error, /when it started/, String(at))
+  assert.deepEqual(killed, [])
 })
 
 test('servers(): a failed or missing listing is no list with the reason; off Windows it is not read', async () => {
@@ -72,6 +81,6 @@ test('servers(): a failed or missing listing is no list with the reason; off Win
   assert.deepEqual(await linux.servers(), { procs: null, error: 'the process list is only read on Windows' })
   const killed = []
   const off = makeProcs({ exec: async () => ({ ok: false, err: 'x' }), kill: p => killed.push(p), here: HERE })
-  assert.match((await off.stop(101)).error, /could not be listed, so nothing was stopped/)
+  assert.match((await off.stop(101, '2026-11-25T20:00:00.0000000Z')).error, /could not be listed, so nothing was stopped/)
   assert.deepEqual(killed, [])
 })

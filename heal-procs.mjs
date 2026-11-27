@@ -114,17 +114,22 @@ export function makeProcs({ exec = null, kill = pid => process.kill(pid), here, 
     }
   }
 
-  /** The user's Stop: listed again, checked again (see the header), then stopped. { ok, error? } in plain words. */
+  /**
+   * The user's Stop: listed again, checked again (see the header), then stopped. { ok, error? } in plain words.
+   * `startedAt` (the start time the page showed) is REQUIRED: without it a pid the system gave to another process
+   * since could not be told apart (QA, 2026-11-27: a Stop sent with no start time skipped that check).
+   */
   async function stop(pid, startedAt) {
     const n = Number(pid)
     if (!Number.isInteger(n) || n <= 0) return { ok: false, error: 'Say which copy to stop.' }
+    if (typeof startedAt !== 'string' || !startedAt.trim()) return { ok: false, error: 'Say when it started, as the page showed it, so no other process is stopped by mistake.' }
     if (n === selfPid) return { ok: false, error: 'That is this dashboard: it is never stopped from here.' }
     const { procs, error } = await servers()
     if (!procs) return { ok: false, error: `The running copies could not be listed, so nothing was stopped: ${error}.` }
     const p = procs.find(x => x.pid === n)
     if (!p) return { ok: false, error: 'That copy is not running any more.' }
     if (!p.canStop) return { ok: false, error: 'That process is not a copy of this dashboard in its own folder or a worktree, so it is not stopped from here.' }
-    if (startedAt && p.startedAt !== startedAt) return { ok: false, error: 'That process number now belongs to another process, so nothing was stopped.' }
+    if (p.startedAt !== startedAt) return { ok: false, error: 'That process number now belongs to another process, so nothing was stopped.' }
     try {
       kill(n)
       return { ok: true, pid: n, port: p.port, folder: p.folder }

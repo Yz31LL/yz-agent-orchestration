@@ -162,7 +162,9 @@ export function makeInsightRoute({
     }
     if (p === '/api/heal/stop') {
       if (!procs) return [404, { error: 'Stopping a copy is not possible here.' }]
-      const r = await procs.stop(b.pid, typeof b.startedAt === 'string' ? b.startedAt : '')
+      // the start time the page showed is required: heal-procs.mjs stops only the process that started then
+      if (typeof b.startedAt !== 'string' || !b.startedAt.trim()) return [400, { error: 'Say when it started, as the page showed it, so no other process is stopped by mistake.' }]
+      const r = await procs.stop(b.pid, b.startedAt)
       if (!r.ok) return [409, { error: r.error }]
       runner.record({ check: 'strays', name: 'Stray dashboard copies', saw: 'you pressed Stop', did: `Stopped the copy on ${r.port ? `port ${r.port}` : `process ${r.pid}`}${r.folder ? ` in ${r.folder}` : ''}.`, result: 'by you' })
       await runner.runOnce(['strays'])
