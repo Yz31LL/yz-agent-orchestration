@@ -77,10 +77,12 @@
     const openPart = open.length
       ? `<ul class="ins-list">${open.map(s => suggestionCard(s, ui, agents, now)).join('')}</ul>`
       : '<p class="ins-empty">No suggestion waits for you. Master files them with <code>factory.mjs suggest</code> when it sees something worth changing.</p>'
+    // a damaged file is not an empty list: its banner says it all, with no Open part saying nothing waits
+    const openSec = state?.broken && !open.length ? '' : `<section class="ins-sec" aria-labelledby="ins-open-h"><h2 class="ins-h" id="ins-open-h">Open · ${open.length}</h2>${openPart}</section>`
     const decidedPart = decided.length
       ? `<section class="ins-sec" aria-labelledby="ins-decided-h"><h2 class="ins-h" id="ins-decided-h">Decided · ${decided.length}</h2><ul class="ins-list">${decided.map(s => suggestionCard(s, ui, agents, now)).join('')}</ul></section>`
       : ''
-    return `<div class="ins-page">${broken}${intro}${status}<section class="ins-sec" aria-labelledby="ins-open-h"><h2 class="ins-h" id="ins-open-h">Open · ${open.length}</h2>${openPart}</section>${decidedPart}</div>`
+    return `<div class="ins-page">${broken}${intro}${status}${openSec}${decidedPart}</div>`
   }
 
   // ═══ Health ═══

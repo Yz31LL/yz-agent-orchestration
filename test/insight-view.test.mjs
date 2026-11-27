@@ -73,7 +73,10 @@ test('Suggestions: the reject form with its reason, busy and error states, decid
   assert.match(decided, /Rejected 26 Nov, \d\d:00: QA runs it\./)
   assert.match(decided, /Accepted 26 Nov, \d\d:00\. Added as a rule of Agent 1; its verdict is due on 10 Dec\./)
   assert.match(decided, /data-ins-do="done" data-ins-id="s000003"[^>]*>Mark done/)
-  assert.match(V.suggestionsHtml({ list: [], broken: true }, {}, NOW), /The suggestions file is damaged/)
+  const damaged = V.suggestionsHtml({ list: [], broken: true }, {}, NOW)
+  assert.match(damaged, /The suggestions file is damaged/)
+  assert.doesNotMatch(damaged, /No suggestion waits for you/, 'a damaged file is not an empty list (QA, 2026-11-27)')
+  assert.doesNotMatch(damaged, /Open · 0/)
 })
 
 const VIEW = {

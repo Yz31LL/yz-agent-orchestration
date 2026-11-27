@@ -105,7 +105,7 @@ export function readSuggestions(file = SUGGESTIONS_FILE) {
   }
 }
 
-const DAMAGED = 'The suggestions file is damaged: data/suggestions.json does not parse, so nothing was saved. The Health page keeps a copy of it.'
+export const DAMAGED = 'The suggestions file is damaged: data/suggestions.json does not parse, so nothing was saved. The Health page keeps a copy of it.'
 
 /** Keep the newest LIMITS.keep: the oldest decided ones go first, an open one never. */
 function trimmed(list) {

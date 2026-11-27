@@ -187,3 +187,18 @@ test('each press looks again at once at what it changed, and answers with that f
   assert.deepEqual(await forced('/api/heal/run', {}), ['all'])
   assert.deepEqual(await forced('/api/heal/switch', { check: 'refresh', on: true }), [['refresh']])
 })
+
+test('a decision while suggestions.json is damaged says so in its own words, not that the suggestion is gone', async () => {
+  // QA, 2026-11-27: it answered 404 That suggestion is gone
+  const s = newOne({ kind: 'fix', target: '' })
+  const good = fs.readFileSync(FILE, 'utf8')
+  fs.writeFileSync(FILE, '{ "suggestions": [ torn')
+  try {
+    const r = await post(`/api/insight/suggestions/${s.id}`, { do: 'accept' })
+    assert.equal(r.status, 409)
+    assert.match((await r.json()).error, /^The suggestions file is damaged: data\/suggestions\.json does not parse, so nothing was saved\./)
+    assert.equal((await (await fetch(`${base}/api/insight/suggestions`)).json()).broken, true)
+  } finally {
+    fs.writeFileSync(FILE, good)
+  }
+})

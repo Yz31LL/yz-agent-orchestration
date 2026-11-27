@@ -38,7 +38,7 @@
     el.innerHTML = V().suggestionsHtml(sug.state, sug.ui)
     const open = sug.state.counts?.open ?? 0
     window.Shell?.setTitle('Suggestions', 'suggestions', open)
-    window.Shell?.setStatus(open ? `${open} waiting for you` : 'Nothing waits for you', V().SUGGESTIONS_HELP)
+    window.Shell?.setStatus(sug.state.broken ? 'The file is damaged' : open ? `${open} waiting for you` : 'Nothing waits for you', V().SUGGESTIONS_HELP)
     if (focus) el.querySelector(focus)?.focus()
   }
 

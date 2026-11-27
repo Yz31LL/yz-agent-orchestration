@@ -33,7 +33,7 @@ import { CONFIG } from './config.mjs'
 import { updateHealState } from './heal-store.mjs'
 import { gatherDigest } from './insight-gather.mjs'
 import { appendInbox } from './insight-inbox.mjs'
-import { decide, isSuggestionId, readSuggestions, SUGGESTIONS_FILE } from './insight-suggestions.mjs'
+import { DAMAGED, decide, isSuggestionId, readSuggestions, SUGGESTIONS_FILE } from './insight-suggestions.mjs'
 import { originAllowed } from './local-origin.mjs'
 import { SECTION_NAMES } from './insight-digest.mjs'
 
@@ -101,7 +101,9 @@ export function makeInsightRoute({
     if (!isSuggestionId(id)) return [404, { error: 'There is no such suggestion.' }]
     const what = b.do
     if (!['accept', 'reject', 'rule', 'done'].includes(what)) return [400, { error: 'Say what to do: accept, reject, rule or done.' }]
-    const s = readSuggestions(file).list.find(x => x.id === id)
+    const { list, broken } = readSuggestions(file)
+    if (broken) return [409, { error: DAMAGED }] // not 'gone': the file that holds it does not read
+    const s = list.find(x => x.id === id)
     if (!s) return [404, { error: 'That suggestion is gone.' }]
     if (s.state !== 'open' && what !== 'done') return [409, { error: `It is already ${s.state}.` }]
     let outcome = ''
