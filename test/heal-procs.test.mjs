@@ -51,6 +51,22 @@ test('which processes are dashboard servers, with their folder, and which may be
   assert.deepEqual(fromMain.map(x => x.pid), [101])
 })
 
+// QA (2026-11-27): the live dashboard started as <repo>\.worktrees\..\server.mjs was listed as a stray and could be
+// stopped, because the path was matched before its dots were resolved.
+test('a path with .. in it is resolved first: the main checkout spelled through .worktrees is never a copy', () => {
+  const procs = [
+    { pid: 301, command: 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\..\\server.mjs', startedAt: 'x' },
+    { pid: 302, command: 'node C:/Users/me/agent-dashboard/.worktrees/a/../../server.mjs', startedAt: 'x' },
+    { pid: 303, command: 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\a\\..\\b\\server.mjs', startedAt: 'x' },
+    { pid: 304, command: 'node C:\\Users\\me\\other\\..\\agent-dashboard\\.worktrees\\c\\.\\server.mjs', startedAt: 'x' },
+  ]
+  const s = dashboardServers({ procs, ports: new Map(), here: 'C:\\Users\\me\\agent-dashboard' })
+  assert.deepEqual(
+    s.map(x => [x.pid, x.folder]),
+    [[303, 'C:/Users/me/agent-dashboard/.worktrees/b'], [304, 'C:/Users/me/agent-dashboard/.worktrees/c']]
+  )
+})
+
 test('stop: only on a fresh listing, only a copy of this repo or a worktree, the same start time, never this server', async () => {
   const killed = []
   const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 100, now: () => NOW })

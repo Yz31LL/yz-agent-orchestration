@@ -88,7 +88,8 @@ export function dashboardServers({ procs = [], ports = new Map(), here }) {
   for (const p of procs) {
     const script = serverScript(p.command)
     if (!script || !/^([A-Za-z]:[\\/]|\/|\\\\)/.test(script)) continue // relative: its folder is not known
-    const folder = slash(path.win32.dirname(script))
+    // Resolve . and .. FIRST: <repo>/.worktrees/../server.mjs is the main checkout, never a copy.
+    const folder = slash(path.win32.dirname(path.win32.normalize(script)))
     const f = lower(folder)
     if (!f.startsWith(trees) || f.length === trees.length || f.slice(trees.length).includes('/')) continue
     const list = ports.get(p.pid) || []
