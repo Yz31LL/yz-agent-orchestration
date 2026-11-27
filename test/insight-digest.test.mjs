@@ -228,3 +228,21 @@ test('the urgent message goes through the relay prompt as ONE message to the coo
   assert.match(src, /, 'insight'\),/)
   assert.match(src, /present: \(\) => present\(CONFIG\.coordinator\)/)
 })
+
+test('Health lines: --section health prints each in full; the full digest keeps the refresh check real error', async () => {
+  // QA, 2026-11-27: each Health line was cut to 200 characters even with --section, and the refresh error with it
+  const error = 'No dump file came back. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth token has expired. Please obtain a new token or refresh your existing token."}}'
+  const long = { id: 'disk', name: 'Disk and data growth', state: 'degraded', text: `The token index is 412.0 MB (past 300.0 MB). The biggest: ${'evidence/flow-with-a-long-name 40.0 MB, '.repeat(8)}end of the list.` }
+  const refresh = { id: 'refresh', name: 'Paid ticket refresh', state: 'failing', text: `The ticket refresh failed 365 times and is still running every 20 minutes. It has cost $52.32 since it last worked. The last error: ${error}` }
+  const health = { ...HEALTH, checks: [refresh, long] }
+  const one = await gatherDigest(providers({ health: () => health }), { now: NOW, only: 'health' })
+  const part = renderDigest({ ...one, only: 'health' })
+  assert.ok(part.includes(refresh.text), part)
+  assert.ok(part.includes(long.text), 'every line in full')
+  const all = renderDigest(await gatherDigest(providers({ health: () => health }), { now: NOW }))
+  assert.ok(all.includes('OAuth token has expired'), 'the refresh error is in the full digest')
+  assert.ok(all.includes('since it last worked'), 'and the cost')
+  const diskLine = all.split('\n').find(l => l.startsWith('DEGRADED: Disk and data growth'))
+  assert.ok(diskLine.length < 260, 'other lines are still cut in the full digest')
+  assert.ok(all.length <= DIGEST_MAX)
+})

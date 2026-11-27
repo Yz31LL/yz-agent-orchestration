@@ -9,7 +9,10 @@
 // - The first lines say what changed: `N new since you last read` with those items (insight-inbox.mjs).
 // - Each part starts with `== NAME ==` on its own line, always in the same order, so a reader (or a grep) finds it.
 // - Each part has a budget (BUDGET); what does not fit ends with `… N more lines: --section <name> shows all of it`.
-//   `only` (--section) prints that one part in full, with no budget.
+//   `only` (--section) prints that one part in full: no budget, and no line cut short (each part's lines take the
+//   cutter as `cut`: whole in --section, cutTo in the full digest; QA, 2026-11-27: Health lines were cut even there).
+// - The full digest cuts each Health line to 200 characters, except the paid ticket refresh: its line carries the
+//   cost AND the real error after it, so it gets REFRESH_LINE (the error is what to act on).
 // - A part whose source failed says `Left out: <why>` and nothing else: never a guessed figure. A part that is there
 //   but missing a piece lists that piece as `Left out: …` at its end.
 // ⚠️ PURE: words only. The data comes from insight-sections.mjs and the watchdog's view (heal-runner.mjs).
@@ -31,10 +34,15 @@ const when = iso => {
 const pct = v => (Number.isFinite(v) ? `${Math.round(v * 100)}%` : 'no data')
 const age = ms => (Number.isFinite(ms) ? durationText(ms) : 'age not known')
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-const cut = (s, n = 110) => {
-  const t = String(s ?? '').replace(/\s+/g, ' ').trim()
+const oneLine = s => String(s ?? '').replace(/\s+/g, ' ').trim()
+const cutTo = (s, n = 110) => {
+  const t = oneLine(s)
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t
 }
+/** --section: every line whole (still one line). */
+const whole = s => oneLine(s)
+/** The refresh check's line in the full digest: its sentence, its cost, and the real error (heal-checks.mjs cuts that at 200). */
+const REFRESH_LINE = 520
 
 /** Lines cut to `budget` characters; the last line says how many more there are and how to see them. */
 export function fit(lines, budget, name) {
@@ -55,7 +63,7 @@ export function fit(lines, budget, name) {
 
 // ═══ the parts ═══
 
-function pipelineLines(d) {
+function pipelineLines(d, cut = cutTo) {
   const nodes = d.boxes || []
   const route = []
   for (const b of nodes) {
@@ -77,7 +85,7 @@ function pipelineLines(d) {
   return lines
 }
 
-function workLines(d) {
+function workLines(d, cut = cutTo) {
   const lines = [`Open flows: ${d.open}${d.open ? ', by where they stand, the longest there first:' : '.'}`]
   for (const g of d.byStage || []) {
     lines.push(`  ${g.where}: ${g.flows.map(f => `${f.id} (${age(f.ageMs)})`).join(', ')}`)
@@ -99,7 +107,7 @@ function workLines(d) {
   return lines
 }
 
-function numbersLines(d) {
+function numbersLines(d, cut = cutTo) {
   const lines = []
   for (const p of d.periods || []) {
     const a = p.now
@@ -119,7 +127,7 @@ function numbersLines(d) {
   return lines
 }
 
-function signalsLines(d) {
+function signalsLines(d, cut = cutTo) {
   const lines = []
   if (d.alerts) {
     lines.push(`Alerts: ${d.alerts.count}${d.alerts.count ? ` (${d.alerts.kinds})` : ''}${d.alerts.hidden ? `, ${d.alerts.hidden} dismissed today` : ''}${d.alerts.building ? '; token alerts wait for the index' : ''}.`)
@@ -149,7 +157,7 @@ function signalsLines(d) {
 }
 
 const STATE_WORD = { ok: 'ok', degraded: 'DEGRADED', failing: 'FAILING', off: 'off' }
-function healthLines(d) {
+function healthLines(d, cut = cutTo) {
   if (!d) return []
   const lines = []
   if (!d.enabled) lines.push('The watchdog is off (config healing.enabled false): nothing is checked.')
@@ -158,7 +166,7 @@ function healthLines(d) {
   const checks = Array.isArray(d.checks) ? d.checks : []
   const worst = [...checks].sort((a, b) => rank(b.state) - rank(a.state))
   for (const c of worst) {
-    lines.push(`${STATE_WORD[c.state] || c.state}: ${c.name}${c.state === 'ok' || c.state === 'off' ? '' : `: ${cut(c.text, 200)}`}`)
+    lines.push(`${STATE_WORD[c.state] || c.state}: ${c.name}${c.state === 'ok' || c.state === 'off' ? '' : `: ${cut(c.text, c.id === 'refresh' ? REFRESH_LINE : 200)}`}`)
   }
   const repairs = Array.isArray(d.repairs24h) ? d.repairs24h : []
   lines.push(repairs.length ? `Repairs in the last 24 hours: ${repairs.length}` : 'Repairs in the last 24 hours: none.')
@@ -168,7 +176,7 @@ function healthLines(d) {
 }
 const rank = s => ({ failing: 3, degraded: 2, ok: 1, off: 0 })[s] ?? 0
 
-function suggestionsLines(d) {
+function suggestionsLines(d, cut = cutTo) {
   const lines = []
   if (d.broken) lines.push('The suggestions file is damaged: tell the user. The Health page keeps a copy.')
   lines.push(`Your suggestions: ${d.counts.open} open, ${d.counts.accepted} accepted, ${d.counts.rejected} rejected, ${d.counts.done} done.`)
@@ -191,7 +199,7 @@ const LINES = { pipeline: pipelineLines, work: workLines, numbers: numbersLines,
 export function sectionText(name, part, budget) {
   const head = `== ${TITLE[name]} ==`
   if (!part || part.ok === false) return [head, `Left out: ${part?.why || 'its source could not be read'}.`].join('\n')
-  const body = LINES[name](part.data)
+  const body = LINES[name](part.data, budget == null ? whole : cutTo)
   const left = (part.data?.left || []).map(l => `Left out: ${l}.`)
   return [head, ...fit([...body, ...left], budget, name)].join('\n')
 }
@@ -202,7 +210,7 @@ function inboxText(inbox, budget) {
   const items = Array.isArray(inbox.items) ? inbox.items : []
   const since = inbox.readAt ? `since you last read (${when(inbox.readAt)})` : 'since the inbox began (you have not read it yet)'
   if (!items.length) return `Nothing new ${since}.`
-  const lines = [`${items.length} new ${since}:`, ...[...items].reverse().map(i => `  ${when(i.at)} ${i.kind}: ${cut(i.text, 160)}`)]
+  const lines = [`${items.length} new ${since}:`, ...[...items].reverse().map(i => `  ${when(i.at)} ${i.kind}: ${cutTo(i.text, 160)}`)]
   const shown = fit(lines, budget, 'inbox')
   // the inbox is no part of its own: what does not fit is the oldest, and the parts below say the same in full
   if (/more line/.test(shown.at(-1))) shown[shown.length - 1] = `  … and ${lines.length - shown.length + 1} older: the parts below have them in full.`
