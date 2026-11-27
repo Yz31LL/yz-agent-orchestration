@@ -147,6 +147,8 @@
   const box = doc.createElement('section')
   box.className = 'hr-box'
   box.setAttribute('aria-labelledby', 'hrHead')
+  // refit whenever the box's own size changes: new rows, or the Agents page showing again after a redraw while hidden
+  if (window.ResizeObserver) new window.ResizeObserver(() => fit()).observe(box)
 
   /** Keep what was typed in an answer field (and the focus) across a redraw. */
   function paintBox() {
@@ -169,7 +171,10 @@
     if (box.parentNode !== canvas) canvas.appendChild(box)
     const s = spot(lay)
     Object.assign(box.style, { left: `${s.x}px`, top: `${s.y}px`, width: `${s.w}px` })
-    canvas.style.height = `${s.y + box.offsetHeight + BOTTOM}px`
+    // a hidden page measures 0: leave the canvas as it is, or the diagram shrinks to a strip (the observer refits on show)
+    if (!box.offsetHeight) return
+    const height = `${s.y + box.offsetHeight + BOTTOM}px`
+    if (canvas.style.height !== height) canvas.style.height = height // unchanged: no write, so the two resize observers never feed each other
   }
 
   function place(c, l) {

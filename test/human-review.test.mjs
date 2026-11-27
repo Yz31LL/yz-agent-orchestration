@@ -169,3 +169,40 @@ test('wired: one line in pipeline-view.js, the box tall when the screen has room
   assert.match(html, /<script src="human-review.js"><\/script>/)
   assert.ok(JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).checkList.includes('node --check public/human-review.js'))
 })
+
+// ═══ regression: the box must not shrink the diagram while the Agents page is hidden ═══
+
+/** human-review.js with a tiny fake DOM: enough for place() and fit(), and a ResizeObserver the test fires. */
+function loadDom() {
+  const made = []
+  const el = () => {
+    const e = {
+      style: {}, innerHTML: '', className: '', dataset: {}, offsetHeight: 0, parentNode: null, isConnected: true,
+      setAttribute() {}, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [], contains: () => false,
+      appendChild(c) { c.parentNode = this }, insertAdjacentHTML() {},
+    }
+    made.push(e)
+    return e
+  }
+  const observers = []
+  class ResizeObserver { constructor(fn) { observers.push(fn) } observe() {} }
+  const document = { createElement: el, addEventListener() {}, getElementById: () => null, querySelector: () => null, activeElement: null, dispatchEvent() {} }
+  const window = { document, ResizeObserver, Shell: { ago: () => '', onRoute() {}, setWaiting() {} }, FlowBoard: { askControls: () => '' }, localStorage: { getItem: () => null, setItem() {} } }
+  vm.runInNewContext(read('human-review.js'), { window, document, fetch: () => new Promise(() => {}), setInterval: () => 1, CSS: { escape: s => s }, ResizeObserver, CustomEvent: class {} })
+  return { H: window.HumanReview, box: made[0], fire: () => observers.forEach(fn => fn()) }
+}
+
+test('a hidden page (the box measures 0) leaves the diagram height alone, and the box fits again once it shows (Agents page clipped bug)', () => {
+  const { H, box, fire } = loadDom()
+  const canvas = { style: {}, appendChild(c) { c.parentNode = this } }
+  const lay = { nodes: [{ x: 10, y: 0, w: 100, h: 50 }], width: 400, height: 300 }
+  box.offsetHeight = 200
+  H.place(canvas, lay)
+  assert.equal(canvas.style.height, '516px', 'the layout (300) + gap (6) + the box (200) + bottom (10)')
+  box.offsetHeight = 0 // the Agents page is hidden while a poll redraws the box
+  H.place(canvas, lay)
+  assert.equal(canvas.style.height, '516px', 'not shrunk to a strip')
+  box.offsetHeight = 180 // back on the Agents page: the box has its size again
+  fire()
+  assert.equal(canvas.style.height, '496px')
+})
