@@ -309,6 +309,92 @@ button.ph-more { min-height: 40px; padding: 8px 12px; border: 1px dashed var(--l
 .ph-route .ph-step-current span { padding: 2px 9px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-weight: 600; }
 .ph-route .ph-step-skipped span { text-decoration: line-through; text-decoration-color: var(--line-strong); }
 
+/* ═══ a pull request, read here (phone-pr.js): the list rows and the flow sheet's line open its sheet; the sheet is the
+   flow sheet's, with checks, review, description, files (each patch scrolls sideways INSIDE its own block, so the
+   page never does) and the conversation. Added and removed lines are tinted AND keep their + and − ═══ */
+.ph-gear { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 0; color: var(--muted); }
+.ph-gear-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.ph-prs button.ph-pr-open {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; border: 0; border-radius: 0; background: none;
+  color: var(--accent); text-align: left; white-space: normal; cursor: pointer;
+}
+.ph-pr-open-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-pr-open-n { flex: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ph-prs .ph-pr-open::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: 2px; border-right: 1.5px solid var(--faint); border-top: 1.5px solid var(--faint); transform: rotate(45deg); }
+button.ph-pr-open.is-inline { display: inline-flex; max-width: 100%; min-height: 44px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 15px; text-align: left; }
+.ph-pr-open.is-inline .ph-pr-open-title { white-space: normal; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 2px; }
+
+.ph-sheet.is-pr .ph-sheet-body { grid-template-columns: minmax(0, 1fr); }
+.ph-pr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; font-size: 14px; color: var(--ink-2); }
+.ph-pr-state { padding: 1px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--ink); }
+.ph-pr-state.is-draft, .ph-pr-state.is-closed { background: var(--surface-3); color: var(--ink-2); }
+.ph-pr-branch { min-width: 0; overflow-wrap: anywhere; }
+.ph-pr-branch code { padding: 1px 5px; background: var(--surface-2); border-radius: 4px; font-size: 12.5px; }
+button.ph-pr-refresh { min-height: 36px; padding: 0 6px; color: var(--accent); font-size: 13.5px; }
+.ph-pr-problem { color: var(--warn); }
+
+.ph-pr-checks { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.ph-pr-checks .ph-dot { flex: none; align-self: center; }
+.ph-pr-checks.is-passing .ph-dot { background: var(--ok); }
+.ph-pr-checks.is-failing .ph-dot { background: var(--bad); }
+.ph-pr-checks.is-running .ph-dot { background: var(--warn); }
+.ph-pr-checklist { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.ph-pr-checklist li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 10px; background: var(--surface-2); border-radius: var(--radius); }
+.ph-pr-check-name { min-width: 0; overflow-wrap: anywhere; }
+.ph-pr-check-word { flex: none; font-size: 13px; color: var(--warn); }
+.ph-pr-checklist .is-failing .ph-pr-check-word { color: var(--bad); font-weight: 600; }
+
+.ph-pr-desc { font-size: 15px; overflow-wrap: anywhere; }
+.ph-pr-desc pre, .ph-convo pre { max-width: 100%; }
+.ph-sheet-body button.ph-more { justify-self: start; }
+
+.ph-pr-files { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); }
+.ph-pr-files > li { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.ph-pr-files > li + li { border-top: 1px solid var(--line); }
+.ph-pr-files > li > .ph-faint { padding: 0 12px 10px; }
+button.ph-pr-file {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 9px 12px;
+  border: 0; border-radius: 0; background: none; text-align: left; font-size: 14px;
+}
+.ph-pr-path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.ph-pr-file::before { content: ""; flex: none; align-self: flex-start; margin-top: 7px; width: 6px; height: 6px; border-right: 1.5px solid var(--faint); border-bottom: 1.5px solid var(--faint); transform: rotate(-45deg); transition: transform .15s ease-out; }
+.ph-pr-file[aria-expanded="true"]::before { transform: rotate(45deg); }
+.ph-pr-counts { flex: none; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ph-pr-counts .is-add { color: var(--ok); }
+.ph-pr-counts .is-del { color: var(--bad); }
+
+.ph-patch { min-width: 0; margin: 0 8px 8px; overflow-x: auto; overscroll-behavior-x: contain; background: var(--surface-2); border-radius: var(--radius); }
+.ph-patch pre { margin: 0; padding: 6px 0; }
+.ph-patch code { display: inline-block; min-width: 100%; font-size: 12px; line-height: 1.5; white-space: pre; }
+.ph-ln { display: block; padding: 0 10px; color: var(--ink-2); }
+.ph-ln.is-add { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ink); }
+.ph-ln.is-del { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--ink); }
+.ph-ln.is-hunk { color: var(--accent); }
+.ph-ln.is-note { color: var(--faint); font-style: italic; }
+
+.ph-convo { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.ph-convo > li { display: grid; gap: 4px; min-width: 0; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); font-size: 14.5px; overflow-wrap: anywhere; }
+.ph-pr-who { margin: 0; font-size: 13px; color: var(--muted); }
+.ph-pr-who b { color: var(--ink); font-weight: 600; }
+
+.ph-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 18px; font: inherit; font-size: 15px;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); text-decoration: none; cursor: pointer;
+}
+.ph-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 550; }
+.ph-pr-foot { margin-top: 6px; }
+.ph-pr-foot > * { flex: 1 1 140px; }
+
+/* the Options sheet: one choice as two radio rows */
+.ph-opt { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ph-opt legend { padding: 0; margin-bottom: 4px; }
+.ph-radio { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.ph-radio input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
+.ph-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.ph-radio-text { display: grid; gap: 2px; font-size: 15px; }
+.ph-radio-text b { font-weight: 600; }
+
 /* the bottom bar: four tabs within thumb reach */
 .ph-nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;

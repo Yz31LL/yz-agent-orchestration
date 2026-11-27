@@ -115,11 +115,16 @@ const item = (n, over = {}) => ({ key: `https://github.com/o/r/pull/${n}`, url: 
 test('the open pull requests are the Pull requests list as given, in its order, titles and links only', async () => {
   const { body } = await make({ prs: () => [item(14, { title: 'Add the login page' }), item(12)] }).orchestration()
   assert.deepEqual(body.prs, [
-    { title: 'Add the login page', url: 'https://github.com/o/r/pull/14', number: 14 },
-    { title: 'Pull 12', url: 'https://github.com/o/r/pull/12', number: 12 },
+    { title: 'Add the login page', url: 'https://github.com/o/r/pull/14', number: 14, flow: 'f14' },
+    { title: 'Pull 12', url: 'https://github.com/o/r/pull/12', number: 12, flow: 'f12' },
   ])
   // a provider that answers with a promise works the same
   assert.equal((await make({ prs: async () => [item(3)] }).orchestration()).body.prs.length, 1)
+})
+
+test('each pull request names its flow by id only when the id is a real flow id, so the phone can open it there', async () => {
+  const { body } = await make({ prs: () => [item(1, { flow: { id: '../x' } }), item(2, { flow: null }), item(3, { flow: { id: 'Ok-Not' } }), item(4)] }).orchestration()
+  assert.deepEqual(body.prs.map(p => p.flow), [null, null, null, 'f4'])
 })
 
 test('the phone never reads pull requests off the flows itself: with no provider the list is empty', async () => {

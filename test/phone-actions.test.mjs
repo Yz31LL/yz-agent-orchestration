@@ -39,9 +39,26 @@ beforeEach(() => {
   fs.mkdirSync(F.FLOWS_DIR, { recursive: true })
 })
 
-test('the allowlist is exactly: read the summary, the orchestration and a flow sheet, answer, tick, complete, and talk to the coordinator', () => {
-  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'flow', 'orchestration', 'summary', 'talk', 'talkSend', 'tick'])
+test('the allowlist is exactly: read the summary, the orchestration, a flow sheet and a pull request, answer, tick, complete, and talk to the coordinator', () => {
+  assert.deepEqual([...ACTIONS].sort(), ['answer', 'complete', 'flow', 'orchestration', 'pr', 'summary', 'talk', 'talkSend', 'tick'])
   assert.deepEqual(Object.keys(actions()).sort(), [...ACTIONS].sort())
+})
+
+test('a pull request is read through the reader it is given (phone-pr.mjs), and with none every one is a 404', async () => {
+  const seen = []
+  const reader = { read: async b => (seen.push(b), { status: 200, body: { title: 'Login' } }) }
+  const r = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), prReader: reader }).pr({ flow: 'login', n: null, keys: ['flow'] })
+  assert.deepEqual(r, { status: 200, body: { title: 'Login' } })
+  assert.deepEqual(seen, [{ flow: 'login', n: null, keys: ['flow'] }])
+  const none = await actions().pr({ flow: 'login', keys: ['flow'] })
+  assert.equal(none.status, 404)
+})
+
+test('the wiring builds the reader on the desktop Pull requests list and server.mjs gh, and nothing else', () => {
+  const wiring = fs.readFileSync(new URL('../phone-wiring.mjs', import.meta.url), 'utf8')
+  assert.match(wiring, /makePrReader\(\{ gh, prs \}\)/)
+  const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8')
+  assert.match(server, /startPhone\(\{[^}]*\bgh,/, 'the same gh runner as the Pull requests list, FACTORY_TEST_GH included')
 })
 
 // ═══ the summary ═══
@@ -199,7 +216,7 @@ test('orchestration and flow are the read-only builders, with the alerts passed 
 test('the Pull requests list is passed through to the orchestration (one list for the desktop and the phone)', async () => {
   const prs = () => [{ url: 'https://github.com/o/r/pull/9', number: 9, title: 'Nine' }]
   const o = await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }), prs }).orchestration()
-  assert.deepEqual(o.body.prs, [{ title: 'Nine', url: 'https://github.com/o/r/pull/9', number: 9 }])
+  assert.deepEqual(o.body.prs, [{ title: 'Nine', url: 'https://github.com/o/r/pull/9', number: 9, flow: null }])
   assert.deepEqual((await makePhoneActions({ relay, talk, getStatus: async () => ({ agents }) }).orchestration()).body.prs, [])
 })
 

@@ -33,7 +33,7 @@ let own
 let base
 
 const recorder = name => async b => (calls.push([name, b]), { status: 200, body: { ok: true, action: name } })
-const actions = { summary: recorder('summary'), orchestration: recorder('orchestration'), flow: recorder('flow'), answer: recorder('answer'), tick: recorder('tick'), complete: recorder('complete'), talk: recorder('talk'), talkSend: recorder('talkSend') }
+const actions = { summary: recorder('summary'), orchestration: recorder('orchestration'), flow: recorder('flow'), answer: recorder('answer'), tick: recorder('tick'), complete: recorder('complete'), talk: recorder('talk'), talkSend: recorder('talkSend'), pr: recorder('pr') }
 const LIMITS = { session: { max: 40, ms: 60_000 }, address: { max: 400, ms: 60_000 }, login: { max: 30, ms: 60_000 } }
 
 function handler(extra = {}) {
@@ -383,8 +383,93 @@ test('the orchestration and a flow sheet are GET only, behind the session, and a
   assert.deepEqual(calls, [['orchestration', {}], ['flow', { id: 'login-page' }], ['flow', { id: null }]], 'only the first id, as given: the action checks it')
 })
 
-test('the API table is exactly the eight actions and the two session routes', () => {
-  assert.deepEqual(Object.keys(P.API).sort(), ['GET /phone/api/flow', 'GET /phone/api/orchestration', 'GET /phone/api/summary', 'GET /phone/api/talk', 'POST /phone/api/answer', 'POST /phone/api/complete', 'POST /phone/api/talk', 'POST /phone/api/tick'])
+test('the API table is exactly the nine actions (the pull request read among them) and the one setting', () => {
+  assert.deepEqual(Object.keys(P.API).sort(), ['GET /phone/api/flow', 'GET /phone/api/orchestration', 'GET /phone/api/pr', 'GET /phone/api/summary', 'GET /phone/api/talk', 'POST /phone/api/answer', 'POST /phone/api/complete', 'POST /phone/api/prefs', 'POST /phone/api/talk', 'POST /phone/api/tick'])
+})
+
+// ═══ reading a pull request, and the one setting ═══
+
+test('the pull request read is GET only, behind the session, and passes on only flow, n and which keys were given', async () => {
+  for (const p of ['/phone/api/pr?flow=login', '/phone/api/pr?n=12']) {
+    const r = await request('GET', p)
+    assert.equal(r.status, 401, `${p} without a session`)
+    assert.equal(r.headers['cache-control'], 'no-store')
+  }
+  const user = await signIn()
+  assert.equal((await write('/phone/api/pr', { flow: 'login' }, asUser(user))).status, 404, 'a POST to it is 404, CSRF or not')
+  for (const m of ['PUT', 'DELETE', 'PATCH']) assert.equal((await request(m, '/phone/api/pr?flow=x', { headers: asUser(user) })).status, 404)
+  assert.deepEqual(calls, [])
+  await request('GET', '/phone/api/pr?flow=login-page&flow=other', { headers: { cookie: user.cookie } })
+  await request('GET', '/phone/api/pr?n=12&repo=evil/x', { headers: { cookie: user.cookie } })
+  assert.deepEqual(calls, [['pr', { flow: 'login-page', n: null, keys: ['flow'] }], ['pr', { flow: null, n: '12', keys: ['n', 'repo'] }]])
+})
+
+test('end to end with the real reader: a repo, a link or a pull request the list does not hold is 404, and gh is never asked', async () => {
+  const { makePrReader } = await import('../phone-pr.mjs')
+  const asked = []
+  const gh = async args => (asked.push(args), args[1] === 'view' ? { ok: true, out: JSON.stringify({ title: 'Login', state: 'OPEN' }) } : { ok: true, out: '' })
+  const list = [{ url: 'https://github.com/acme/shop/pull/12', number: 12, title: 'Login', flow: { id: 'login-page', title: 'Login page' } }]
+  const reader = makePrReader({ gh, prs: () => list })
+  current = handler({ actions: { ...actions, pr: b => reader.read(b) } })
+  const user = await signIn()
+  const get = p => request('GET', p, { headers: { cookie: user.cookie } })
+  for (const p of [
+    '/phone/api/pr?flow=other', '/phone/api/pr?n=13', '/phone/api/pr', '/phone/api/pr?repo=acme/shop&n=12', '/phone/api/pr?n=12&url=https://github.com/evil/x/pull/12',
+    '/phone/api/pr?flow=https%3A%2F%2Fgithub.com%2Facme%2Fshop%2Fpull%2F12', '/phone/api/pr?flow=login-page&repo=evil%2Fx', '/phone/api/pr?url=https://github.com/acme/shop/pull/12',
+    '/phone/api/pr?flow=..%2Flogin-page', '/phone/api/pr?n=12%20--web', '/phone/api/pr?n=--web',
+  ]) {
+    const r = await get(p)
+    assert.equal(r.status, 404, p)
+    assert.match(r.json.error, /not on the list/, p)
+  }
+  assert.deepEqual(asked, [])
+  const ok = await get('/phone/api/pr?flow=login-page')
+  assert.equal(ok.status, 200)
+  assert.equal(ok.json.url, 'https://github.com/acme/shop/pull/12')
+  assert.deepEqual(asked.map(a => a.slice(0, 4)), [['pr', 'view', '12', '--repo=acme/shop'], ['pr', 'diff', '12', '--repo=acme/shop']])
+})
+
+test('the one setting: only { prLinks: here | github }, kept on THIS session alone, and /me gives it back', async () => {
+  const user = await signIn()
+  const other = await signIn()
+  assert.equal((await request('GET', '/phone/api/me', { headers: { cookie: user.cookie } })).json.prLinks, 'here', 'here unless changed')
+  for (const body of [{}, { prLinks: 'elsewhere' }, { prLinks: 'GITHUB' }, { prLinks: true }, { prLinks: ['github'] }, { prLinks: 'github', theme: 'dark' }, { theme: 'dark' }, { pinHash: 'x' }]) {
+    const r = await write('/phone/api/prefs', body, asUser(user))
+    assert.equal(r.status, 400, JSON.stringify(body))
+    assert.match(r.json.error, /Only/)
+  }
+  for (const raw of ['{"prLinks":"github","constructor":{"prototype":{"x":1}}}', '{"prLinks":"github","__proto__":{"x":1}}', '{"__proto__":{"prLinks":"github"}}']) {
+    assert.equal((await write('/phone/api/prefs', raw, asUser(user))).status, 400, raw)
+  }
+  const r = await write('/phone/api/prefs', { prLinks: 'github' }, asUser(user))
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.json, { ok: true, prLinks: 'github' })
+  assert.equal((await request('GET', '/phone/api/me', { headers: { cookie: user.cookie } })).json.prLinks, 'github')
+  assert.equal((await request('GET', '/phone/api/me', { headers: { cookie: other.cookie } })).json.prLinks, 'here', 'another phone keeps its own')
+  assert.equal((await request('GET', '/phone/api/prefs', { headers: { cookie: user.cookie } })).status, 404, 'no GET of it')
+  assert.deepEqual(calls, [], 'no action is reached: the setting is the session record only')
+  // what was written is the session's own record and nothing else; the file still reads back clean
+  const file = JSON.parse(fs.readFileSync(authFile, 'utf8'))
+  assert.deepEqual(file.sessions.map(x => x.prLinks || null).sort(), ['github', null].sort())
+  assert.equal(JSON.stringify(file).includes('theme'), false)
+  // a new sign-in starts at here again
+  assert.equal((await request('GET', '/phone/api/me', { headers: { cookie: (await signIn()).cookie } })).json.prLinks, 'here')
+})
+
+test('the setting is refused without a session, a CSRF token or the page own Origin, before anything is written', async () => {
+  const user = await signIn()
+  const other = await signIn()
+  const before = fs.readFileSync(authFile, 'utf8')
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' })).status, 401)
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { cookie: user.cookie })).status, 403)
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { cookie: user.cookie, 'x-phone-csrf': other.csrf })).status, 403, 'another session CSRF')
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { cookie: user.cookie, 'x-phone-csrf': 'x'.repeat(43) })).status, 403)
+  assert.equal((await request('POST', '/phone/api/prefs', { body: { prLinks: 'github' }, headers: { 'content-type': 'application/json', ...asUser(user) } })).status, 403, 'no Origin')
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { ...asUser(user), origin: `http://localhost:${own.port}` })).status, 403)
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { ...asUser(user), origin: 'http://evil.example' })).status, 403)
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { ...asUser(user), 'sec-fetch-site': 'cross-site' })).status, 403)
+  assert.equal((await write('/phone/api/prefs', { prLinks: 'github' }, { ...asUser(user), 'content-type': 'text/plain' })).status, 415)
+  assert.equal(fs.readFileSync(authFile, 'utf8'), before)
 })
 
 // ═══ the listener itself ═══

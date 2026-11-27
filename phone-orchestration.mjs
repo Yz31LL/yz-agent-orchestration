@@ -19,7 +19,7 @@
 //              holding 8 flows longer than usual is ONE alert on both (the phone once said 10 where the PC said 3).
 //     prs      the open pull requests: the desktop's OWN Pull requests list (prlist-store.mjs, the fog block on the
 //              Agents page and Home, given here as the `prs` provider), in its order, trimmed to { title, url,
-//              number }, only https://github.com/<owner>/<repo>/pull/<n> addresses, at most PRS_MAX. ⚠️ The phone
+//              number, flow } (`flow` the flow's id, so the phone opens the pull request there: phone-pr.mjs), only https://github.com/<owner>/<repo>/pull/<n> addresses, at most PRS_MAX. ⚠️ The phone
 //              never reads pull requests off the flows or asks gh itself: one list, one gh cadence (at most once a
 //              minute), so the phone and the desktop never disagree. With no provider, or one that throws, hangs or
 //              answers junk, the list is empty and the tab still answers.
@@ -142,7 +142,7 @@ export function makeOrchestration({ getStatus, alerts = async () => null, prs = 
   async function openPrs() {
     return (await fogItems())
       .slice(0, PRS_MAX)
-      .map(p => ({ title: cut(p.title || p.url, TITLE_MAX), url: p.url, number: Number(p.number) || null }))
+      .map(p => ({ title: cut(p.title || p.url, TITLE_MAX), url: p.url, number: Number(p.number) || null, flow: typeof p.flow?.id === 'string' && SLUG.test(p.flow.id) ? p.flow.id : null }))
   }
   /** A flow sheet's pull request: the fog list's item for THIS flow, or null. ⚠️ Never the flow record alone
    *  (output.pr): it can still say open after GitHub merged or closed it, and the phone must agree with the PC. */

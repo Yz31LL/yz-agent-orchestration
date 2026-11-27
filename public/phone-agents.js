@@ -12,7 +12,10 @@
 //                                there as chips (data-ph-flow opens the sheet); other sessions; finished today
 //   sheet({ loading, error, data }, ui)   the flow's title, tickets, where it stands, its route line, its open
 //                                questions with the same answer buttons as Needs you (PhoneView.askCard: the
-//                                existing answer action), its last QA verdict, its story, its pull request link
+//                                existing answer action), its last QA verdict, its story, its pull request
+// A pull request (the list and a flow sheet) opens as the user chose in Options (ui.prLinks, kept on the session):
+// 'here', the default, is a button (data-ph-pr, the flow's id) that opens the pull request sheet (public/phone-pr.js);
+// 'github' is the link to GitHub, as before. One with no flow id is always the link: the sheet is read by flow.
 // ⚠️ Every value is HOSTILE (agents, tickets and transcripts wrote it): esc everywhere, and a link only to an https
 // github.com address (PhoneText.isGithub), never one the data merely claims. No inline style or handler (the CSP).
 ;(() => {
@@ -27,6 +30,13 @@
   const KIND = { build: 'Code change', ask: 'Question', review: 'Review' }
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
   const link = (url, label) => (X.isGithub(url) ? `<a class="ph-pr-link"${attr('href', url)} target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : `<span>${esc(label)}</span>`)
+  const FLOW_ID = /^[a-z0-9-]{1,80}$/
+  /** A pull request: the sheet here (a button), or GitHub (the link), as the user chose; `n` its number beside the title. */
+  function prEntry(flowId, url, label, ui, n, inline) {
+    if (ui?.prLinks === 'github' || !FLOW_ID.test(String(flowId ?? ''))) return link(url, label)
+    return `<button type="button" class="ph-pr-open${inline ? ' is-inline' : ''}"${attr('data-ph-pr', flowId)}><span class="ph-pr-open-title">${esc(label)}</span>` +
+      (n ? `<span class="ph-pr-open-n">#${Number(n)}</span>` : '') + '</button>'
+  }
 
   function stateOf(state) {
     const word = STATE_WORD[state]
@@ -77,11 +87,11 @@
       (rest > 0 ? `<p class="ph-faint">${esc(`${rest} more at the PC.`)}</p>` : '') + '</section>'
   }
 
-  function prsBlock(prs) {
+  function prsBlock(prs, ui) {
     const list = Array.isArray(prs) ? prs : []
     if (!list.length) return ''
     return '<h2 class="ph-h">Open pull requests</h2>' +
-      `<ul class="ph-prs">${list.map(p => `<li>${link(p.url, p.title)}</li>`).join('')}</ul>`
+      `<ul class="ph-prs">${list.map(p => `<li>${prEntry(p.flow, p.url, p.title, ui, Number(p.number) || 0)}</li>`).join('')}</ul>`
   }
 
   function view(orch, sum, nowMs = Date.now(), ui = {}) {
@@ -94,7 +104,7 @@
     if (!orch) return `<section class="ph-sec">${head}<p class="ph-muted ph-pad-top">Loading…</p></section>`
     const boxes = Array.isArray(orch.boxes) ? orch.boxes : []
     const others = Array.isArray(orch.others) ? orch.others : []
-    return '<section class="ph-sec" aria-label="Agents">' + head + alertsBlock(orch.alerts) + prsBlock(orch.prs) +
+    return '<section class="ph-sec" aria-label="Agents">' + head + alertsBlock(orch.alerts) + prsBlock(orch.prs, ui) +
       '<h2 class="ph-h">Pipeline</h2>' +
       (orch.agentsKnown === false ? '<p class="ph-muted">Your PC is still gathering what the agents are doing. It shows here in a moment.</p>' : '') +
       `<ol class="ph-pipe">${boxes.map(b => boxRow(b, open)).join('')}</ol>` +
@@ -132,7 +142,7 @@
       qa +
       (story.length ? `<h3 class="ph-h">Story</h3><ul class="ph-story">${story.map(l => `<li><b>${esc(l.who)}</b> ${esc(l.did)}${l.why ? ` <span class="ph-faint">${esc(l.why)}</span>` : ''}</li>`).join('')}</ul>` : '') +
       // the pull request as the PC's Pull requests list has it (phone-orchestration.mjs sheetPr): open, or a draft
-      (f.pr ? `<p class="ph-line">${link(f.pr.url, `${`Pull request #${Number(f.pr.number) || ''}`.trim()}${f.pr.state === 'draft' ? ', a draft' : ''}`)}</p>` : ''))
+      (f.pr ? `<p class="ph-line">${prEntry(f.id, f.pr.url, `${`Pull request #${Number(f.pr.number) || ''}`.trim()}${f.pr.state === 'draft' ? ', a draft' : ''}`, ui, 0, true)}</p>` : ''))
   }
 
   window.PhoneAgents = { view, sheet }

@@ -999,7 +999,7 @@ if (!(await listenWhenFree(server, PORT, '127.0.0.1'))) process.exit(1)
 console.log(`Yz Agent Orchestration on http://127.0.0.1:${PORT}${CONFIG.project ? ` (project ${CONFIG.project.name})` : ''}`)
 // Phone access (phone-wiring.mjs): a second listener on one private address, ONLY when config.json's remote block turns it on
 // prs: the Pull requests list the fog block shows (prlist-store.mjs), read from memory: the phone asks gh nothing itself
-startPhone({ getStatus, relay, run: claudeRun, sessions: liveSessions, transcriptFile, alerts: () => predictRoute.alerts(), prs: () => prListRoute.list.snapshot().items })
+startPhone({ getStatus, relay, run: claudeRun, sessions: liveSessions, transcriptFile, gh, alerts: () => predictRoute.alerts(), prs: () => prListRoute.list.snapshot().items })
 
 await fetchOrigin()
 setInterval(fetchOrigin, FETCH_EVERY_MS).unref()

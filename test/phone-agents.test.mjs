@@ -90,7 +90,8 @@ test('the flow sheet: title, tickets, where it stands, the route line, its quest
   assert.match(text(h), /Last QA Failed · attempt 2/)
   assert.match(text(h), /The button does nothing\./)
   assert.match(text(h), /Agent 1 Built the form\. You asked\./)
-  assert.ok(h.includes('<a class="ph-pr-link" href="https://github.com/o/r/pull/12" target="_blank" rel="noopener noreferrer">Pull request #12</a>'))
+  assert.ok(h.includes('<button type="button" class="ph-pr-open is-inline" data-ph-pr="pay"><span class="ph-pr-open-title">Pull request #12</span></button>'), 'here by default: the pull request sheet')
+  assert.ok(A.sheet({ data: SHEET }, { prLinks: 'github' }).includes('<a class="ph-pr-link" href="https://github.com/o/r/pull/12" target="_blank" rel="noopener noreferrer">Pull request #12</a>'), 'or GitHub, as chosen')
   assert.match(h, /data-ph-sheet-close/)
 })
 
@@ -98,12 +99,13 @@ test('the sheet while loading, after a refusal, and with nothing optional', () =
   assert.match(text(A.sheet({ loading: true }, {})), /Loading/)
   assert.match(text(A.sheet({ error: 'That flow is in the archive now: open it at the PC.' }, {})), /in the archive now/)
   const bare = A.sheet({ data: { ...SHEET, tickets: [], type: '', story: [], qa: null, asks: [], pr: null } }, {})
-  assert.doesNotMatch(bare, /Last QA|ph-pr-link|data-ph-answer/)
+  assert.doesNotMatch(bare, /Last QA|ph-pr-link|data-ph-pr|data-ph-answer/)
 })
 
 test('a draft pull request on the sheet says so', () => {
   const h = A.sheet({ data: { ...SHEET, pr: { url: 'https://github.com/o/r/pull/31', number: 31, state: 'draft' } } }, {})
-  assert.ok(h.includes('>Pull request #31, a draft</a>'))
+  assert.ok(h.includes('>Pull request #31, a draft</span></button>'))
+  assert.ok(A.sheet({ data: { ...SHEET, pr: { url: 'https://github.com/o/r/pull/31', number: 31, state: 'draft' } } }, { prLinks: 'github' }).includes('>Pull request #31, a draft</a>'))
   assert.doesNotMatch(A.sheet({ data: SHEET }, {}), /a draft/)
 })
 

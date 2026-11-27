@@ -26,11 +26,17 @@
 // a browser drops a Secure cookie over HTTP. Tailscale encrypts the link; home Wi-Fi with WPA2 or better
 // encrypts the air. Anyone who can read the traffic on the network itself can read the cookie.
 //
+// THE PAGE'S ONE OPTION (Open pull requests: here | on GitHub, public/phone-pr.js) is kept ON THE SESSION's record
+// (prLinks), because the phone page stores nothing itself (phone-app.js). It is set through POST /phone/api/prefs
+// (phone-server.mjs), which accepts ONLY { prLinks: 'here' | 'github' } (prefsProblem) and writes nothing but that
+// one field of that one session; a new sign-in starts at 'here', and the field goes with the session.
+//
 // THE CSRF TOKEN is an HMAC of the session token (csrfOf): a page on another site can neither read the cookie
 // nor compute it, and nothing extra is stored. Every write on the phone API sends it in a header.
 //
 //   phonePinProblem(pin)          why a new phone PIN is refused, or null
 //   makeAuthStore({ file, now, log })   { login, session, logout, signOutEverywhere, lockedFor, events, logEvents, read }
+//   prefsProblem(body) / PREFS   why a setting is refused, or null; the one key and its two values
 //   csrfOf(token) / csrfOk(token, header)
 //   sessionCookie(token, hours) / clearCookie() / tokenFromCookie(header)
 
@@ -55,6 +61,15 @@ export const EVENT_KINDS = Object.freeze(['login', 'wrong', 'lockout', 'escalate
 
 /** The shortest phone PIN: 8 digits, so the guess budget (ESCALATE) covers a tiny share of the 100 million choices. */
 export const PIN_MIN = 8
+
+/** The page's one option and its values, the first the default: MUST CHANGE IN LOCKSTEP with public/phone-pr.js. */
+export const PREFS = Object.freeze({ prLinks: Object.freeze(['here', 'github']) })
+
+/** Why a setting is refused, or null: exactly the one key, with one of its two values. */
+export function prefsProblem(b) {
+  const keys = b && typeof b === 'object' && !Array.isArray(b) ? Object.keys(b) : []
+  return keys.length === 1 && keys[0] === 'prLinks' && PREFS.prLinks.includes(b.prLinks) ? null : 'Only the pull request setting can be changed here: here or github.'
+}
 
 export function phonePinProblem(pin) {
   if (typeof pin !== 'string') return 'The phone PIN must be typed as digits.'
@@ -112,7 +127,7 @@ function clean(raw) {
   s.pinMark = raw.pinMark && typeof raw.pinMark === 'object' && isTime(raw.pinMark.at) ? { pin: fp(raw.pinMark.pin), at: raw.pinMark.at } : null
   s.sessions = (Array.isArray(raw.sessions) ? raw.sessions : [])
     .filter(x => x && /^[0-9a-f]{64}$/.test(x.id) && isTime(x.createdAt) && isTime(x.expiresAt))
-    .map(x => ({ id: x.id, createdAt: x.createdAt, expiresAt: x.expiresAt, address: String(x.address || '').slice(0, 64) }))
+    .map(x => ({ id: x.id, createdAt: x.createdAt, expiresAt: x.expiresAt, address: String(x.address || '').slice(0, 64), ...(PREFS.prLinks.includes(x.prLinks) ? { prLinks: x.prLinks } : {}) }))
   s.events = (Array.isArray(raw.events) ? raw.events : [])
     .filter(e => e && isTime(e.at) && EVENT_KINDS.includes(e.kind))
     .map(e => ({ at: e.at, kind: e.kind, address: String(e.address || '').slice(0, 64), ...(Number.isInteger(e.count) ? { count: e.count } : {}), ...(typeof e.text === 'string' ? { text: e.text.slice(0, 300) } : {}), ...(e.outside === true ? { outside: true } : {}) }))
@@ -227,7 +242,17 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
     let found = null
     for (const x of s.sessions) if (same(x.id, id)) found = x // every entry is compared: the time says nothing about which
     if (!found || !live(found, sessionHours)) return null
-    return { id, csrf: csrfOf(token), expiresAt: found.expiresAt, address: found.address }
+    return { id, csrf: csrfOf(token), expiresAt: found.expiresAt, address: found.address, prLinks: found.prLinks || PREFS.prLinks[0] }
+  }
+
+  /** The page's option on ONE session's record (`id`, from session()): false when that session is gone or the write failed. */
+  function setPrefs(id, prefs) {
+    if (prefsProblem(prefs)) return false
+    const s = read()
+    const mine = s.sessions.find(x => same(x.id, id))
+    if (!mine) return false
+    mine.prLinks = prefs.prLinks
+    return tryWrite(s)
   }
 
   function logout(token) {
@@ -296,7 +321,7 @@ export function makeAuthStore({ file = AUTH_FILE, now = Date.now, log = line => 
     pin: e => e.text, config: e => e.text }
   const logEvents = () => read().events.filter(e => LOGGED[e.kind]).map(e => ({ at: e.at, kind: 'phone', flow: null, agent: null, cell: null, text: LOGGED[e.kind](e) || '' }))
 
-  return { read, login, session, logout, signOutEverywhere, lockedFor: () => lockedFor(), events, logEvents, noteRemote, markPin }
+  return { read, login, session, setPrefs, logout, signOutEverywhere, lockedFor: () => lockedFor(), events, logEvents, noteRemote, markPin }
 }
 
 /** The lockouts in the machine's auth file as Log events: what score-routes.mjs adds to the orchestration Log. */

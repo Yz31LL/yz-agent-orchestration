@@ -2082,7 +2082,7 @@ dashboard keeps listening on `127.0.0.1` only.
 **What the phone can do**, and nothing else: see how many things need you, and on the Agents tab the pipeline from
 Request to Output with each agent's state, the flows standing at each box (a tap opens a read-only sheet), the
 alerts and the open pull requests (the same list as the desktop Pull requests block, read from its memory, so the
-phone adds no GitHub read) (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
+list adds no GitHub read; opening one reads it, below) (`GET /phone/api/orchestration` and `/phone/api/flow?id=`, read only); answer
 an open question (once: changing an answer stays on the PC); tick a by-hand step; mark a finished output
 Completed; and chat with the coordinator. The chat is one thread shared by every phone signed in with the PIN (they
 are all you): the last 30 messages, each with the coordinator's written replies that followed it, so it survives a
@@ -2092,6 +2092,27 @@ new sign-in. Replies written before the first phone message are never shown, nor
 deployed or live, and no settings change, until you confirm at the PC. There is no delete, archive,
 settings, rules, config, Finish without Senior, Send or Generate on the phone. An answer and a message each go
 through the answer relay's short paid turn on your PC, a few cents each (`phone` in Spend today for messages).
+
+**Reading a pull request on the phone.** A tap on an open pull request (the Agents tab list, or a flow sheet)
+opens it in a sheet on the phone: its title, `repo #number`, Open or Draft, the branch going into the base, who
+opened it and when; the checks in one plain line (`22 passed, 1 failing, 1 running`) with each failing or running
+check by name; who a review is asked of, who approved and who asked for changes; the description, folded after 40
+lines; the files changed with their counts, each unfolding its changes in a block that scrolls sideways on its own
+(added and removed lines tinted, their `+` and `-` kept); and the latest comments, newest last. **Open on
+GitHub** and **Open the flow** are at the bottom. It is read only: there is no merge, approve, review or comment
+on the phone (`GET /phone/api/pr?flow=<id>` or `?n=<number>`, phone-pr.mjs). Only a pull request the desktop's
+Pull requests list holds can be read, and the repository and number gh is given come from that list, never from
+the phone: any other address, or one that names a repository or a link, is a 404. It runs `gh pr view` and `gh pr
+diff`, keeps a copy of each pull request for a minute (Refresh within the minute shows that copy and says when it
+was read), and never runs more than two gh calls at once. What GitHub returns is treated as hostile text: escaped,
+the description and comments drawn by the chat's own safe renderer (only github.com links are tappable, no images,
+no HTML), the invisible direction-changing characters taken out of names and shown as `[U+202E]` in changes. Long
+pull requests are cut, and each cut is said with GitHub as the way on: the description at 20,000 characters, 100
+files, 300 lines of changes a file and 1,500 in all, the 30 latest comments of 2,000 characters each. When GitHub
+cannot be read, the sheet keeps the last copy with one plain line. The gear at the top of the phone opens
+**Options**: `Open pull requests: Here | On GitHub` (Here by default; On GitHub keeps the old links). The phone
+page stores nothing itself, so the choice is kept on the phone's sign-in (`POST /phone/api/prefs`, which accepts
+only `{ "prLinks": "here" | "github" }` and changes nothing else) and lasts until that phone signs out.
 
 The block, in config.json (`config.example.json` has it, off):
 `"remote": { "enabled": false, "bind": "", "port": 4318, "pinHash": "", "sessionHours": 4 }`

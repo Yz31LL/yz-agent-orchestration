@@ -18,6 +18,8 @@
 //   with this file's state, network call and draw. The composer stays above the on-screen keyboard (phone-composer.js).
 // - The address names the tab (#talk, #needs …) or the open flow sheet (#flow=<id>), so a reload or a home-screen
 //   icon opens where the user was.
+// - A pull request opens in its own sheet (public/phone-pr-live.js), or on GitHub, as the Options sheet (the gear in
+//   the header) says; that choice is kept on the session, read back from /phone/api/me.
 // - The flow sheet (a chip on the Agents tab) is a modal dialog: focus moves into it and stays there (Tab wraps),
 //   Escape, Close or a tap outside it closes it and gives the focus back to its chip; a poll that redraws it keeps
 //   its scroll. An answer given in it reloads it.
@@ -27,7 +29,7 @@
 //   page's load event and starts then, or says the page did not load completely: never a blank page, never a throw
 //   on a missing object (QA, 2026-11-26: one of 40 quick reloads showed an empty body).
 ;(function boot(retry = false) {
-  const NEEDS = ['PhoneState', 'PhoneText', 'PhoneChat', 'PhoneView', 'PhoneAgents', 'PhoneComposer', 'PhoneChatLive']
+  const NEEDS = ['PhoneState', 'PhoneText', 'PhoneChat', 'PhoneView', 'PhoneAgents', 'PhoneComposer', 'PhoneChatLive', 'PhonePr', 'PhonePrLive']
   if (NEEDS.some(name => !window[name])) {
     const el = window.document?.getElementById?.('app')
     if (retry && el) el.innerHTML = '<p class="ph-muted ph-boot" role="status">The page did not load completely. Reload it to try again.</p>'
@@ -49,8 +51,8 @@
 
   const first = S.routeOf(window.location.hash)
   const st = {
-    signedIn: false, csrf: '', tab: first.tab, summary: null, orch: null, sheet: null, thread: null, notice: '', pill: false,
-    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '' }, limited: 0,
+    signedIn: false, csrf: '', tab: first.tab, summary: null, orch: null, sheet: null, pr: null, options: null, thread: null, notice: '', pill: false,
+    signIn: { status: '', busy: false }, ui: { status: {}, busy: {}, confirm: null, talkDraft: '', prLinks: 'here' }, limited: 0,
   }
   let timers = []
   let round = 0 // bumped by stop(): a poll that was already on its way does not schedule another after it
@@ -78,7 +80,7 @@
 
   function signedOut(why) {
     stop()
-    Object.assign(st, { signedIn: false, csrf: '', summary: null, orch: null, sheet: null, thread: null, pill: false })
+    Object.assign(st, { signedIn: false, csrf: '', summary: null, orch: null, sheet: null, pr: null, options: null, thread: null, pill: false })
     st.signIn = { status: why || '', busy: false }
     draw()
   }
@@ -127,7 +129,7 @@
 
   /** Tab and Shift+Tab stay inside the open sheet. */
   function trapTab(e) {
-    const sheet = root.querySelector('.ph-sheet')
+    const sheet = root.querySelector('.ph-sheet') // only one sheet is ever drawn: Options, a pull request, or a flow
     if (!sheet) return
     const list = [...sheet.querySelectorAll('button:not([disabled]), a[href], textarea, input:not([disabled])')]
     if (!list.length) return
@@ -185,6 +187,7 @@
     if (drafts.talk !== undefined) st.ui.talkDraft = drafts.talk
     const focus = selectorOf(doc.activeElement)
     const sheetTop = root.querySelector('.ph-sheet-body')?.scrollTop || 0
+    const patches = pr.keep()
     const label = st.summary?.coordinator || st.thread?.label || 'Master'
     // the browser tab and the home-screen switcher say where the user is: Sign in before the PIN, else the tab
     doc.title = st.signedIn ? V.tabTitle(st.tab, label) : 'Sign in'
@@ -197,9 +200,9 @@
         : A.view(st.orch, st.summary, Date.now(), st.ui)
       root.innerHTML = '<div class="ph-app">' +
         `<header class="ph-top"><span class="ph-brand">${V.esc(V.tabTitle(st.tab, label))}</span><span class="ph-notice" role="status">${V.esc(st.notice)}</span>` +
-        '<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>' +
+        `${window.PhonePr.gear()}<button type="button" class="link ph-out" data-ph-signout>Sign out</button></header>` +
         `<main class="ph-main${st.tab === 'talk' ? ' is-chat' : ''}" id="phMain">${body}</main>${V.nav(st.tab, st.summary, label)}` +
-        `${st.sheet ? A.sheet(st.sheet, st.ui) : ''}</div>`
+        `${st.options ? window.PhonePr.options(st.ui.prLinks, st.options) : st.pr ? window.PhonePr.sheet(st.pr, st.pr) : st.sheet ? A.sheet(st.sheet, st.ui) : ''}</div>`
     }
     for (const f of root.querySelectorAll('[data-draft]')) {
       const k = f.getAttribute('data-draft')
@@ -210,14 +213,16 @@
       K.measure(root)
       chat.showPill()
     }
-    doc.documentElement.classList.toggle('sheet-open', !!(st.signedIn && st.sheet))
+    doc.documentElement.classList.toggle('sheet-open', !!(st.signedIn && (st.sheet || pr.isOpen())))
     const body = root.querySelector('.ph-sheet-body')
     if (body) body.scrollTop = sheetTop
+    pr.restore(patches)
     if (focus) root.querySelector(focus)?.focus?.({ preventScroll: true })
   }
 
   const say = (key, text) => { st.ui.status[key] = text; draw() }
   const chat = window.PhoneChatLive.make({ root, st, call, draw, say, offline: OFFLINE })
+  const pr = window.PhonePrLive.make({ root, st, call, draw, offline: OFFLINE, openFlow: id => openSheet(id), hashOfTab: () => S.hashOf(st.tab) })
 
   // ═══ actions ═══
 
@@ -235,6 +240,7 @@
       return draw()
     }
     Object.assign(st, { signedIn: true, csrf: r.json.csrf, signIn: { status: '', busy: false } })
+    st.ui.prLinks = 'here' // a new sign-in starts at the default (phone-auth.mjs)
     opened()
   }
 
@@ -264,8 +270,9 @@
     return act(key, '/phone/api/answer', { flowId, nodeId, answer: value }, 'Answered. The agent hears it shortly.')
   }
 
-  /** A refused tick redraws from the summary as it was, so the box goes back to what is stored. */
-  function tick(box) {
+  /** A refused tick redraws from the summary as it was, so the box goes back to what is stored.
+   *  ⚠️ NOT named tick: that is the poll above, and a second function tick in this scope replaced it (no poll ran). */
+  function tickStep(box) {
     const flowId = box.getAttribute('data-flow')
     const on = !!box.checked
     return act(`hand:${flowId}`, '/phone/api/tick', { flowId, step: box.getAttribute('data-step'), done: on }, on ? 'Ticked.' : 'Unticked.')
@@ -279,7 +286,7 @@
 
   function go(tab) {
     st.tab = tab
-    st.sheet = null
+    st.sheet = st.pr = st.options = null
     st.ui.confirm = null
     chat.reset()
     window.history?.replaceState?.(null, '', S.hashOf(tab))
@@ -294,6 +301,9 @@
   /** Signed in (or a session already open): the summary, the tab the address named, and the polls. */
   async function opened() {
     draw()
+    // #pr=<flow id> or #options, once: opened at once, not after the agent list (it can take seconds to build)
+    if (!first.seen && !first.flow) pr.fromAddress()
+    first.seen = true
     await loadSummary()
     if (st.tab === 'talk') await chat.load()
     if (st.tab === 'agents') await loadOrch()
@@ -316,6 +326,7 @@
       field.value = k === 'clear' ? '' : k === 'back' ? field.value.slice(0, -1) : (field.value + k).slice(0, 12)
       return
     }
+    if (pr.onClick(t)) return // the pull request sheet, the gear and Options (phone-pr-live.js)
     if (t.closest('[data-ph-sheet-close]')) return closeSheet()
     const tab = t.closest('[data-ph-tab]')
     if (tab) return go(tab.getAttribute('data-ph-tab'))
@@ -362,7 +373,8 @@
     }
   })
   root.addEventListener('change', e => {
-    if (e.target?.matches?.('[data-ph-tick]')) tick(e.target)
+    if (e.target?.matches?.('[data-ph-tick]')) tickStep(e.target)
+    else pr.onChange(e.target)
   })
   root.addEventListener('input', e => {
     if (e.target?.id !== 'phTalk') return
@@ -377,7 +389,8 @@
     if (e.target.matches('[data-ph-talk]')) return chat.send(e.target)
   })
   root.addEventListener('keydown', e => {
-    if (st.sheet && e.key === 'Tab') return trapTab(e)
+    if ((st.sheet || pr.isOpen()) && e.key === 'Tab') return trapTab(e)
+    if (e.key === 'Escape' && pr.onEscape()) return
     if (st.sheet && e.key === 'Escape') return closeSheet()
     if (e.key === 'Escape' && st.ui.confirm) {
       const id = st.ui.confirm
@@ -394,6 +407,7 @@
     const r = await call('GET', '/phone/api/me')
     if (r.status === 200) {
       Object.assign(st, { signedIn: true, csrf: r.json.csrf })
+      st.ui.prLinks = r.json.prLinks === 'github' ? 'github' : 'here'
       await opened()
     } else {
       st.signedIn = false

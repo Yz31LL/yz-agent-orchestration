@@ -821,8 +821,8 @@ is off until you set it up, and only reachable on your own private network.
 **On the phone** there are four tabs at the bottom:
 
 - **Agents**: how many things need you (questions, by-hand steps, outputs to sign off), the alerts (how many, and
-  the first two), the open pull requests (the same list as the Pull requests block on the PC; a tap opens GitHub),
-  and the pipeline as a list from Request to Output:
+  the first two), the open pull requests (the same list as the Pull requests block on the PC; a tap opens it on
+  the phone, see below), and the pipeline as a list from Request to Output:
   each box with its agent's state (a green dot for busy, grey for idle, a ring for no session) and the flows standing
   there. Tap a flow to see its tickets, where it stands, its route, its open questions (with Yes and No), its last
   QA result, its story and its pull request. Close it with Close, Escape or a tap outside. Read only, apart from
@@ -842,6 +842,31 @@ is off until you set it up, and only reachable on your own private network.
   arrives with a fixed first line saying it came from your phone, and the coordinator then does nothing
   destructive, nothing that pushes, deploys or touches a live system, and no settings change until you confirm
   at the PC.
+
+**Reading a pull request on the phone.** Tap an open pull request, on the Agents tab or in a flow, and it opens in
+a sheet on the phone instead of leaving for GitHub:
+
+- at the top, its title, the repository and number, Open or Draft, the branch going into its base, who opened it
+  and when, and when it was read from GitHub, with a small **Refresh**;
+- **Checks**: one plain line such as `Failing: 22 passed, 1 failing, 1 running`, then each failing or running
+  check by name;
+- **Review**: who a review is asked of, who approved, who asked for changes;
+- **Description**: folded after 40 lines, **Show more** opens the rest;
+- **Files changed**: the totals (`5 files, +324 −19`) and each file with its own; tap a file to see its changes,
+  in a block that scrolls sideways on its own. Added lines are green and start with `+`, removed ones are red and
+  start with `-`;
+- **Conversation**: the latest comments and reviews, newest at the bottom;
+- **Open on GitHub** (a new tab) and **Open the flow** at the bottom. Close, Escape or a tap outside closes it.
+
+It is for reading only: approving, commenting and merging stay on GitHub. A long pull request is cut (the
+description at 20,000 characters, 100 files, 300 lines of changes a file and 1,500 in all, the 30 latest comments)
+and the sheet says so each time, with GitHub as the way to the rest. What it shows is at most a minute old:
+Refresh within the minute shows the same copy. If GitHub cannot be read, the sheet keeps what it showed before
+and says so in one line.
+
+To have pull requests open on GitHub as before, tap the **gear** at the top of the phone, then under **Open
+pull requests** choose **On GitHub**. The phone itself stores nothing, so the choice is kept with your sign-in
+on the PC: it lasts until that phone signs out, and each new sign-in starts at **Here**.
 
 A quiet line at the top says when the phone cannot reach the PC. When the session ends (after 4 hours by
 default), the phone asks for the PIN again.

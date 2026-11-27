@@ -12,10 +12,12 @@
 // config.json that does not parse, this PC off the network it was set up on) and opens again when the block is good
 // again, such as when the PC is back on that network.
 //
-//   startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts?, prs? }, { reader?, configFile?, every? })   { door, stop() }
+//   startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts?, prs?, gh? }, { reader?, configFile?, every? })   { door, stop() }
 //   alerts: Predict and warn's own answer (predict-routes.mjs route.alerts), for the Agents tab's alert lines
 //   prs:    the desktop's Pull requests list (prlist-store.mjs snapshot().items), for the Agents tab's open pull
-//           requests: the SAME list the fog block shows, so the phone adds no gh read of its own
+//           requests: the SAME list the fog block shows, so the phone adds no gh read of its own for the list
+//   gh:     server.mjs's GitHub runner, for ONE thing: reading a pull request that list holds when the phone opens it
+//           (phone-pr.mjs: gh pr view and gh pr diff, read only, cached a minute, two at a time at most)
 
 import { CONFIG, CONFIG_FILE } from './config.mjs'
 import { makePhoneActions } from './phone-actions.mjs'
@@ -23,6 +25,7 @@ import { makeAuthStore } from './phone-auth.mjs'
 import { makeRemoteReader } from './phone-bind.mjs'
 import { turnPhoneOff } from './phone-config.mjs'
 import { makeDoor } from './phone-door.mjs'
+import { makePrReader } from './phone-pr.mjs'
 import { makePhoneHandler, startPhoneListener } from './phone-server.mjs'
 import { makeTalk } from './phone-talk.mjs'
 
@@ -59,7 +62,7 @@ export function watchRemote({ reader = remoteNow, auth = makeAuthStore(), every 
 /** The coordinator's session, live or pinned, by its session name (config coordinator). */
 const coordinatorOf = async sessions => (await sessions()).find(s => s.name === CONFIG.coordinator) || null
 
-export function startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts = async () => null, prs = () => [] }, { reader = remoteNow, configFile = CONFIG_FILE, every = CHECK_MS } = {}) {
+export function startPhone({ getStatus, relay, run, sessions, transcriptFile, alerts = async () => null, prs = () => [], gh = async () => ({ ok: false, out: '' }) }, { reader = remoteNow, configFile = CONFIG_FILE, every = CHECK_MS } = {}) {
   const auth = makeAuthStore()
   const watcher = watchRemote({ reader, auth, every })
   const talk = makeTalk({
@@ -77,7 +80,8 @@ export function startPhone({ getStatus, relay, run, sessions, transcriptFile, al
   })
   const lost = talk.sweep()
   if (lost) console.log(`phone: ${lost} message(s) to ${CONFIG.coordinatorLabel} were on their way when the dashboard stopped; the phone shows them as not sent`)
-  const actions = makePhoneActions({ relay, talk, getStatus, alerts, prs })
+  const prReader = makePrReader({ gh, prs })
+  const actions = makePhoneActions({ relay, talk, getStatus, alerts, prs, prReader })
   let door = null
   // 3 lockouts in 24 hours (phone-auth.mjs ESCALATE): phone access OFF in config.json, the same write as Turn phone access off
   const onEscalate = () => {

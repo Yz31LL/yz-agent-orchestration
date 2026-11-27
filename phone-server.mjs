@@ -7,10 +7,14 @@
 //   GET  /phone/<asset>           its own assets, from a FIXED map (ASSETS): never a path built from the request
 //   POST /phone/login             { pin }: sign in (phone-auth.mjs), sets the session cookie, answers { csrf, expiresAt }
 //   POST /phone/logout            sign this phone out
-//   GET  /phone/api/me            { csrf, expiresAt }: a reloaded page gets its CSRF token back
+//   GET  /phone/api/me            { csrf, expiresAt, prLinks }: a reloaded page gets its CSRF token and its option back
+//   POST /phone/api/prefs         { prLinks: 'here' | 'github' } and NOTHING else (phone-auth.mjs prefsProblem): the page's
+//                                 one option, on this session's own record; no action, nothing outside that record
 //   GET  /phone/api/summary       \
 //   GET  /phone/api/orchestration  |  (read only: the Agents tab, phone-orchestration.mjs)
 //   GET  /phone/api/flow?id=       |  (read only: one flow's sheet; only the first id in the address is passed on)
+//   GET  /phone/api/pr?flow= | ?n= |  (read only: one pull request the Pull requests list holds, phone-pr.mjs; only
+//                                  |  the first flow and n are passed on, with which keys the address had)
 //   GET  /phone/api/talk           |  the allowlist (phone-actions.mjs): each a named action, never a forwarded path
 //   POST /phone/api/answer         |
 //   POST /phone/api/tick           |
@@ -48,7 +52,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { cachePolicy, etagMatches, makePhoneAssets } from './phone-assets.mjs'
-import { clearCookie, csrfOk, sessionCookie, tokensFromCookie } from './phone-auth.mjs'
+import { clearCookie, csrfOk, prefsProblem, sessionCookie, tokensFromCookie } from './phone-auth.mjs'
 import { makeLimiter, PHONE_LIMITS } from './phone-limits.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -79,6 +83,8 @@ export const ASSETS = Object.freeze({
   '/phone/phone-composer.js': ['phone-composer.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-agents.js': ['phone-agents.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-chat-live.js': ['phone-chat-live.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-pr.js': ['phone-pr.js', 'text/javascript; charset=utf-8'],
+  '/phone/phone-pr-live.js': ['phone-pr-live.js', 'text/javascript; charset=utf-8'],
   '/phone/phone-app.js': ['phone-app.js', 'text/javascript; charset=utf-8'],
   '/phone/manifest.webmanifest': ['phone-manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
   '/phone/icon.svg': ['phone-icon.svg', 'image/svg+xml'],
@@ -91,11 +97,13 @@ export const API = Object.freeze({
   'GET /phone/api/summary': 'summary',
   'GET /phone/api/orchestration': 'orchestration',
   'GET /phone/api/flow': 'flow',
+  'GET /phone/api/pr': 'pr',
   'GET /phone/api/talk': 'talk',
   'POST /phone/api/answer': 'answer',
   'POST /phone/api/tick': 'tick',
   'POST /phone/api/complete': 'complete',
   'POST /phone/api/talk': 'talkSend',
+  'POST /phone/api/prefs': 'prefs', // not an action: the session's own record (below)
 })
 
 const OFF = 'Phone access is off.'
@@ -208,14 +216,26 @@ export function makePhoneHandler({ settings, own, auth, actions, limits = PHONE_
         if (!csrfOk(token, req.headers[CSRF_HEADER])) return send(res, 403, { error: 'The page is out of date. Reload it and try again.' })
         if (!isJson(req)) return send(res, 415, { error: 'That request could not be read.' })
       }
-      if (route === 'GET /phone/api/me') return send(res, 200, { ok: true, csrf: session.csrf, expiresAt: session.expiresAt })
+      if (route === 'GET /phone/api/me') return send(res, 200, { ok: true, csrf: session.csrf, expiresAt: session.expiresAt, prLinks: session.prLinks })
       if (isLogout) {
         await jsonBody(req)
         auth.logout(token)
         return send(res, 200, { ok: true }, { 'set-cookie': clearCookie() })
       }
-      // a GET carries no body; the flow sheet's id is the address's first id, as given (the action checks it)
-      const body = req.method === 'POST' ? await jsonBody(req) : action === 'flow' ? { id: new URLSearchParams(query).get('id') } : {}
+      if (action === 'prefs') {
+        const b = await jsonBody(req)
+        const problem = prefsProblem(b)
+        if (problem) return send(res, 400, { error: problem })
+        if (!auth.setPrefs(session.id, b)) return send(res, 503, { error: 'The PC could not save that. Try again in a moment.' })
+        return send(res, 200, { ok: true, prLinks: b.prLinks })
+      }
+      // a GET carries no body; the flow sheet's id is the address's first id, as given (the action checks it); a pull
+      // request's flow or number likewise, with the keys the address had, so the action refuses one that names more
+      const q = new URLSearchParams(query)
+      const body = req.method === 'POST' ? await jsonBody(req)
+        : action === 'flow' ? { id: q.get('id') }
+        : action === 'pr' ? { flow: q.get('flow'), n: q.get('n'), keys: [...new Set(q.keys())] }
+        : {}
       const r = await actions[action](body, { session: session.id.slice(0, 32) })
       return send(res, r.status, r.body)
     } catch (err) {

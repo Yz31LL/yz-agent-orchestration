@@ -13,10 +13,12 @@
 //             belong to THAT flow (handTickRoute looks it up there).
 //   complete  mark a finished flow completed: completed-routes.mjs completeRoute with completed: true. Never false:
 //             Uncomplete stays on the desktop. An unfinished flow is refused with the desktop's own sentence.
+//   pr        read: one pull request the Pull requests list holds, by its flow id or number (phone-pr.mjs, injected
+//             as `prReader`): title, checks, review, description, files with their changes, conversation. Nothing written.
 //   talk, talkSend   read the thread with Master (the same for every signed-in phone) and what a message costs
 //             (phone-cost.mjs), send a message (phone-talk.mjs).
 // NOT here, on purpose: delete, archive, drop, status, settings, rules, config, Finish without Senior, pull-request
-// Send, Generate, Request test steps, Ask for steps, the chat. A phone that is lost while signed in can do only
+// Send, merge, approve, review or comment on a pull request, Generate, Request test steps, Ask for steps, the chat. A phone that is lost while signed in can do only
 // what is above until the session expires or the desktop signs it out.
 //
 // Each action takes the parsed JSON body and resolves { status, body }. `relay`, `talk`, `getStatus`, `alerts` and
@@ -33,7 +35,7 @@ import { phoneCost } from './phone-cost.mjs'
 import { makeOrchestration } from './phone-orchestration.mjs'
 import { TALK_MAX } from './phone-talk.mjs'
 
-export const ACTIONS = Object.freeze(['summary', 'orchestration', 'flow', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
+export const ACTIONS = Object.freeze(['summary', 'orchestration', 'flow', 'pr', 'answer', 'tick', 'complete', 'talk', 'talkSend'])
 const SLUG = /^[a-z0-9-]{1,80}$/
 const NODE = /^[A-Za-z0-9_-]{1,40}$/
 const STORY_LINES = 8
@@ -62,7 +64,10 @@ const startOfToday = now => {
 /** How long the Agents tab waits for the agent list (phone-orchestration.mjs): a cold status build can take far longer. */
 export const AGENTS_WAIT_MS = 3000
 
-export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, prs = () => [], config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
+/** No reader given: every pull request is not on the list. */
+const NO_READER = { read: async () => no(404, 'That pull request is not on the list.') }
+
+export function makePhoneActions({ relay, talk, getStatus, alerts = async () => null, prs = () => [], prReader = NO_READER, config = CONFIG, now = Date.now, agentsWaitMs = AGENTS_WAIT_MS, cost = phoneCost }) {
   const orch = makeOrchestration({ getStatus, alerts, prs, config, now, agentsWaitMs })
   // the agents themselves are on the Agents tab (orchestration): the summary no longer waits for the status build
   async function summary() {
@@ -144,5 +149,5 @@ export function makePhoneActions({ relay, talk, getStatus, alerts = async () => 
   const talkGet = async () => ok({ ...(await talk.threadWithReplies()), cost: cost() })
   const talkSend = async (b, ctx = {}) => talk.send(isObject(b) ? b.text : undefined, ctx.session || '')
 
-  return { summary, orchestration: () => orch.orchestration(), flow: b => orch.flow(b), answer, tick, complete, talk: talkGet, talkSend }
+  return { summary, orchestration: () => orch.orchestration(), flow: b => orch.flow(b), pr: b => prReader.read(b), answer, tick, complete, talk: talkGet, talkSend }
 }
