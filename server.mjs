@@ -20,7 +20,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CONFIG, prNow } from './config.mjs'
+import { CONFIG, labelLookup, prNow } from './config.mjs'
 import { chatStatus } from './chat.mjs'
 import { collections, readSource, startAutoRefresh } from './factory.mjs'
 import { factoryRoute } from './factory-routes.mjs'
@@ -90,10 +90,8 @@ const CURFEW_HOUR = CONFIG.stopHour
 
 /** Sessions that write code, and the names the user calls them. */
 const CODING_AGENTS = CONFIG.codingAgents
-/** Names the user gave sessions whose registry name says otherwise. */
-const ALIASES = CONFIG.aliases
-/** The label a session shows under: the coordinator by its configured label (config coordinatorLabel), any other by the session maps. */
-const labelOf = name => (name === CONFIG.coordinator ? CONFIG.coordinatorLabel : CODING_AGENTS[name] ?? ALIASES[name] ?? name)
+/** The label a session shows under: the coordinator by its configured label, any other by codingAgents, then aliases (config.mjs labelLookup). */
+const labelOf = labelLookup(CONFIG)
 /** The branches the levels compare (config levels): the coordinator's working branch, remote dev and stage. */
 const LEVELS = CONFIG.levels
 

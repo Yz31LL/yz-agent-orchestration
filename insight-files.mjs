@@ -9,7 +9,7 @@
 // Read only: nothing here writes a file.
 
 import { readAgentSettings } from './agent-settings.mjs'
-import { CONFIG } from './config.mjs'
+import { CONFIG, labelLookup } from './config.mjs'
 import { listFlows } from './flows.mjs'
 import { healthFromFiles } from './heal-store.mjs'
 import { unread } from './insight-inbox.mjs'
@@ -33,7 +33,8 @@ export function fileProviders({ config = CONFIG, now = () => Date.now() } = {}) 
     settings: () => readAgentSettings(),
     flows: () => listFlows({ archived: 'any' }).flows,
     prs: () => null,
-    tokens: () => ({ ...makeTokenIndex({ file: TOKEN_INDEX_FILE }).snapshot(), prices: priceTable(config.tokens).prices }),
+    // labelOf: the server's own lookup, so Pipeline tokens names an agent as the dashboard does (not a raw alias)
+    tokens: () => ({ ...makeTokenIndex({ file: TOKEN_INDEX_FILE }).snapshot(), prices: priceTable(config.tokens).prices, labelOf: labelLookup(config) }),
     alerts: () => null,
     group: globalThis.PredictGroup,
     misses: (flows, graph, since) => misses(flows, { graph, since, now: now() }),

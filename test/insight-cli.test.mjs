@@ -135,3 +135,16 @@ test('the real CLI: --json before --by keeps the name, and the coordinator rule 
   assert.match(usage.stdout, /orchestration \[--json\] \[--section/)
   assert.match(usage.stdout, /suggest "<what to change>" --why/)
 })
+
+test('the digest from the files names each agent as the dashboard does: the coordinator, codingAgents, then aliases', async () => {
+  // QA, 2026-11-27: built from the files, Pipeline tokens said indepenent (a raw alias) where the dashboard says Independent agent
+  const { fileProviders } = await import('../insight-files.mjs')
+  const { labelLookup } = await import('../config.mjs')
+  const config = { ...CONFIG, coordinator: 'flinki-v2', coordinatorLabel: 'Master', codingAgents: { a1: 'Agent 1' }, aliases: { indepenent: 'Independent agent', a1: 'not this' } }
+  const { labelOf } = fileProviders({ config }).tokens()
+  assert.equal(typeof labelOf, 'function')
+  assert.deepEqual(['indepenent', 'flinki-v2', 'a1', 'someone'].map(labelOf), ['Independent agent', 'Master', 'Agent 1', 'someone'])
+  assert.deepEqual(['indepenent', 'flinki-v2', 'a1', 'someone'].map(labelLookup(config)), ['Independent agent', 'Master', 'Agent 1', 'someone'])
+  // server.mjs labels sessions with the SAME lookup, not a copy of it
+  assert.match(fs.readFileSync(path.join(HERE, '..', 'server.mjs'), 'utf8'), /^const labelOf = labelLookup\(CONFIG\)\r?$/m)
+})
