@@ -7,16 +7,27 @@
 //                                   suggestion (the user decided on one), alert (an alert was raised), gate (a flow a
 //                                   gate stopped). The newest KEEP lines are kept (rewritten whole, atomically, when
 //                                   the file passes KEEP + TRIM_AT).
-//   data/master-inbox-state.json    { readAt, sentAt, seen: { alerts: [keys], stops: [flow ids] } }: the read marker,
-//                                   when the last urgent message went, and what was already put in the inbox, so a
-//                                   restart never puts the same alert or stop in twice
+//   data/master-inbox-state.json    { readAt, sentAt, seeded, seen: { alerts: [keys], stops: [flow ids] } }: the read
+//                                   marker, when the last urgent message went, when the FIRST pass on this machine
+//                                   ended (seeded), and what was already put in the inbox, so a restart never puts the
+//                                   same alert or stop in twice
 //
 //   appendInbox({ kind, text, key? }, opts)     one item; an item with a `key` already in the inbox is not added again
 //   unread(opts)                                { items, readAt }: the items after the read marker, oldest first
 //   markRead(at, opts)                          moves the marker to `at` (the digest's build time): an item added
 //                                               after that stays new
 //   noteNew(kind, keys, opts)                   which of `keys` are new for `kind` (alerts, stops), remembering them
+//   markSeeded(at, opts)                        the first pass is over: from now on new alerts and stops go in
 //   makeNotifier({ settings, send, present, now, file })   the URGENT path (config insight.notifyMaster urgent)
+//   makeInbox({ file, stateFile, notify, events })   what the watchdog (heal-runner.mjs) is handed: all of the above
+//                                               on one pair of files
+//
+// THE FIRST PASS on a machine only REMEMBERS the alerts and gate stops already there (the inbox would otherwise start
+// with every old alert, and the urgent path would send old stops). It is decided by its OWN marker, `seeded`, written
+// when that pass ends, NEVER by whether the state file exists: the urgent message of a failing check writes `sentAt`
+// to that file earlier in the same pass (QA, 2026-11-27: on an empty data folder with urgent on, that made the first
+// pass look like a later one, and the inbox filled with old alerts). A state file from before this marker has no
+// `seeded`, so its next pass is quiet once, which only remembers.
 //
 // THE URGENT PATH: with insight.notifyMaster "urgent", a FAILING health check or a flow a gate stopped is also sent to
 // Master through the answer relay's turn (relay.mjs messagePrompt and claudeRun): ONE message, never more than one per
@@ -73,10 +84,11 @@ export function readInboxState(file = INBOX_STATE_FILE) {
     return {
       readAt: isTime(j?.readAt) ? j.readAt : null,
       sentAt: isTime(j?.sentAt) ? j.sentAt : null,
+      seeded: isTime(j?.seeded) ? j.seeded : null,
       seen: { alerts: Array.isArray(j?.seen?.alerts) ? j.seen.alerts.filter(k => typeof k === 'string') : [], stops: Array.isArray(j?.seen?.stops) ? j.seen.stops.filter(k => typeof k === 'string') : [] },
     }
   } catch {
-    return { readAt: null, sentAt: null, seen: { alerts: [], stops: [] } }
+    return { readAt: null, sentAt: null, seeded: null, seen: { alerts: [], stops: [] } }
   }
 }
 const writeState = (s, file) => writeAtomic(file, JSON.stringify(s, null, 1))
@@ -138,6 +150,17 @@ export function noteNew(kind, keys, { stateFile = INBOX_STATE_FILE, log = consol
   return fresh
 }
 
+/** The first pass on this machine is over (see the header). A failed write is logged; the next pass is quiet again. */
+export function markSeeded(at = Date.now(), { stateFile = INBOX_STATE_FILE, log = console.error } = {}) {
+  const s = readInboxState(stateFile)
+  if (s.seeded) return
+  try {
+    writeState({ ...s, seeded: new Date(at).toISOString() }, stateFile)
+  } catch (err) {
+    log(`inbox: could not mark the first pass done: ${err?.message || err}`)
+  }
+}
+
 /**
  * The urgent path. `settings()` gives { notifyMaster }; `present()` resolves whether Master has a session open;
  * `send(text)` runs the one relay turn and resolves { ok, error? } (its cost is recorded by the caller as `insight`).
@@ -169,5 +192,20 @@ export function makeNotifier({ settings, send, present, now = () => Date.now(), 
     } finally {
       busy = false
     }
+  }
+}
+
+/**
+ * The inbox as the watchdog uses it (heal-runner.mjs `inbox`), on one pair of files: `notify` is makeNotifier's,
+ * `events()` resolves { alerts: [{ key, text }], stops: [{ id, text }] }. firstTime() is true until markSeeded.
+ */
+export function makeInbox({ file = INBOX_FILE, stateFile = INBOX_STATE_FILE, notify = async () => 'off', events = async () => ({ alerts: [], stops: [] }), now = () => Date.now(), log = console.error } = {}) {
+  return {
+    append: item => appendInbox(item, { file, now: now(), log }),
+    notify,
+    events,
+    noteNew: (kind, keys) => noteNew(kind, keys, { stateFile, log }),
+    firstTime: () => !readInboxState(stateFile).seeded,
+    seed: () => markSeeded(now(), { stateFile, log }),
   }
 }

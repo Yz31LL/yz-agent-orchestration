@@ -19,7 +19,7 @@
 //   names a JSON file that stands in for the process list, and a Stop then only records; no real process is looked
 //   at or stopped. It is not a setting and is documented nowhere else.
 
-import { existsSync, readdirSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,7 +36,7 @@ import { makeRepairs } from './heal-repairs.mjs'
 import { makeDelayMeter, makeHealRunner } from './heal-runner.mjs'
 import { HEAL_STATE_FILE, readHealState } from './heal-store.mjs'
 import { fileProviders } from './insight-files.mjs'
-import { appendInbox, INBOX_STATE_FILE, makeNotifier, noteNew } from './insight-inbox.mjs'
+import { makeInbox, makeNotifier } from './insight-inbox.mjs'
 import { makeInsightRoute } from './insight-routes.mjs'
 import { healingSettings, insightSettings } from './insight-settings.mjs'
 import { learnSettings } from './learn-settings.mjs'
@@ -103,11 +103,8 @@ export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenR
     present: () => present(CONFIG.coordinator),
     send: async text => relayOutcome(await claudeRun(messagePrompt(CONFIG.coordinator, [`From the dashboard: ${text} Read the digest for the rest: node ${FACTORY_CLI} orchestration --by "${CONFIG.coordinatorLabel}"`])), 'insight'),
   })
-  const inbox = {
-    append: item => appendInbox(item),
+  const inbox = makeInbox({
     notify,
-    noteNew: (kind, keys) => noteNew(kind, keys),
-    firstTime: () => !existsSync(INBOX_STATE_FILE),
     async events() {
       const alerts = predictRoute ? (await predictRoute.alerts())?.body?.alerts || [] : []
       const stops = listFlows({ archived: 'any' }).flows.filter(f => stoppedBy(f) && !f.completedAt && !f.archivedAt)
@@ -116,7 +113,7 @@ export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenR
         stops: stops.map(f => ({ id: f.id, text: `${f.title || f.id} (${f.id}) was stopped by ${stoppedBy(f)} after too many failures: only the user moves it on.` })),
       }
     },
-  }
+  })
 
   // ═══ the watchdog ═══
   const facts = {

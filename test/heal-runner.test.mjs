@@ -19,6 +19,7 @@ const { configFacts, diskFacts, storeFacts } = await import('../heal-facts.mjs')
 const { readHealLog, readHealState } = await import('../heal-store.mjs')
 const { makeBeats } = await import('../heal-beats.mjs')
 const { healingSettings } = await import('../insight-settings.mjs')
+const { makeInbox, makeNotifier, readInbox, readInboxState } = await import('../insight-inbox.mjs')
 after(() => fs.rmSync(TMP, { recursive: true, force: true }))
 
 const CONFIG_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'config.json')
@@ -221,8 +222,9 @@ test('alerts and gate stops go in the inbox once each; the first pass on a machi
   const notes = []
   const seen = { alerts: new Set(), stops: new Set() }
   let ev = { alerts: [{ key: 'a1', text: 'Old alert.' }], stops: [{ id: 'f1', text: 'f1 was stopped by QA.' }] }
+  let seeded = false
   const inbox = {
-    append: i => items.push(i), notify: n => notes.push(n), events: async () => ev, firstTime: () => true,
+    append: i => items.push(i), notify: n => notes.push(n), events: async () => ev, firstTime: () => !seeded, seed: () => (seeded = true),
     noteNew: (kind, keys) => keys.filter(key => !seen[kind].has(key) && seen[kind].add(key)),
   }
   const h = runner({}, { inbox })
@@ -343,4 +345,46 @@ test('a press while a pass runs waits for it, then looks again at the check it n
   await Promise.all([minute, press])
   assert.equal(held.reads, 2)
   assert.deepEqual(one(h.r.view(), 'deliveries').extra.held, [])
+})
+
+test('urgent on, an EMPTY data folder: the first pass sends no old alert or gate stop and puts none in the inbox', async () => {
+  // QA, 2026-11-27: the urgent message of a failing check wrote the inbox state file early in the first pass, so the
+  // "no state file yet" guard saw a file and the inbox filled with every old alert. The first pass is now decided by
+  // its own marker (seeded), written at the END of that pass.
+  const d = dir()
+  const file = path.join(d, 'master-inbox.jsonl')
+  const stateFile = path.join(d, 'master-inbox-state.json')
+  const sent = []
+  const notify = makeNotifier({ settings: () => ({ notifyMaster: 'urgent' }), present: async () => true, send: async t => (sent.push(t), { ok: true }), now: () => NOW, stateFile, log: () => {} })
+  let ev = { alerts: [{ key: 'a1', text: 'Old alert one.' }, { key: 'a2', text: 'Old alert two.' }], stops: [{ id: 'f1', text: 'f1 was stopped by QA long ago.' }] }
+  const inbox = makeInbox({ file, stateFile, notify, events: async () => ev, log: () => {} })
+  const { world, facts } = refreshWorld() // the refresh fails: a FAILING check on the very first pass
+  const h = runner({ refresh: facts.refresh }, { inbox })
+  void world
+  await h.r.runOnce()
+  assert.deepEqual(readInbox(file).filter(i => i.kind === 'alert' || i.kind === 'gate'), [], 'old alerts and stops are only remembered')
+  assert.equal(sent.length, 1, 'the failing check itself may go: it is news now')
+  assert.match(sent[0], /^Health: Paid ticket refresh is failing/)
+  assert.ok(readInboxState(stateFile).seeded, 'the first pass is marked done')
+  // the next pass: only what is new goes in, and a new stop takes the urgent path (too soon here: one per 30 minutes)
+  ev = { alerts: [...ev.alerts, { key: 'a3', text: 'A new alert.' }], stops: [...ev.stops, { id: 'f2', text: 'f2 was stopped by Security.' }] }
+  h.t.now += MIN
+  await h.r.runOnce()
+  assert.deepEqual(readInbox(file).filter(i => i.kind === 'alert' || i.kind === 'gate').map(i => i.text), ['A new alert.', 'f2 was stopped by Security.'])
+  assert.equal(sent.length, 1)
+})
+
+test('a machine that ran the inbox before this marker existed: its first pass is quiet once, then marked', async () => {
+  const d = dir()
+  const file = path.join(d, 'master-inbox.jsonl')
+  const stateFile = path.join(d, 'master-inbox-state.json')
+  fs.writeFileSync(stateFile, JSON.stringify({ readAt: null, sentAt: iso(NOW - 5 * MIN), seen: { alerts: [], stops: [] } }))
+  const inbox = makeInbox({ file, stateFile, notify: async () => 'off', events: async () => ({ alerts: [{ key: 'a1', text: 'Old.' }], stops: [] }), log: () => {} })
+  assert.equal(inbox.firstTime(), true)
+  await runner({}, { inbox }).r.runOnce()
+  assert.deepEqual(readInbox(file), [])
+  const st = readInboxState(stateFile)
+  assert.ok(st.seeded)
+  assert.equal(st.sentAt, iso(NOW - 5 * MIN), 'the urgent slot is kept')
+  assert.deepEqual(st.seen.alerts, ['a1'])
 })

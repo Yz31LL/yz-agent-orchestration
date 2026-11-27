@@ -22,7 +22,9 @@
 //   a press during a running pass waits for that pass and then looks again, so the answer is never the old state
 //   (QA, 2026-11-27: after Release the page showed the held deliveries and their button for up to a minute).
 // - New alerts and flows a gate stopped are put in the inbox too, each once (insight-inbox.mjs noteNew); the very first
-//   pass on a machine only remembers what is there, so the inbox does not start with every old alert.
+//   pass on a machine only remembers what is there, so the inbox does not start with every old alert, and the urgent
+//   path sends none of them. "First" is the inbox's own marker (firstTime() until seed(), at the end of that pass),
+//   never whether a file exists (insight-inbox.mjs says why).
 // - The server's own delay (the Server check) is measured here with monitorEventLoopDelay: each minute's 99th
 //   percentile and the slowest request or job of that minute (noteWork, which the server calls for each request).
 
@@ -67,7 +69,8 @@ export function makeDelayMeter() {
 /**
  * `facts` maps a check id to an async function giving that check its facts (heal-checks.mjs says what each needs).
  * `actions` maps a repair id to async (target, result) => { ok, did?, error? }. `inbox` is { append({ kind, text }),
- * notify({ text, urgent }), events(), noteNew(kind, keys, { silent }), firstTime() }; any part may be left out.
+ * notify({ text, urgent }), events(), noteNew(kind, keys), firstTime(), seed() } (insight-inbox.mjs makeInbox); any
+ * part may be left out.
  */
 export function makeHealRunner({
   settings = () => ({ enabled: true, repairs: true }), facts = {}, actions = {}, inbox = {}, now = () => Date.now(),
@@ -82,7 +85,6 @@ export function makeHealRunner({
   let work = null // the slowest request or job of this minute
   let running = null
   let forced = new Set() // check ids the next pass runs even within their interval ('all': every check)
-  let passes = 0
   let lastAt = null
   const iso = () => new Date(now()).toISOString()
 
@@ -146,8 +148,8 @@ export function makeHealRunner({
     if (res.state === 'failing') void Promise.resolve(inbox.notify?.({ text: `Health: ${text}`, urgent: true })).catch(() => {})
   }
 
-  /** New alerts and gate stops into the inbox, each once; a stop also goes to the urgent path. */
-  async function events(first) {
+  /** New alerts and gate stops into the inbox, each once; a stop also goes to the urgent path. The first pass only remembers. */
+  async function events() {
     if (typeof inbox.events !== 'function' || typeof inbox.noteNew !== 'function') return
     let ev
     try {
@@ -155,13 +157,13 @@ export function makeHealRunner({
     } catch {
       return
     }
-    const silent = first && inbox.firstTime?.() === true
+    const silent = inbox.firstTime?.() === true
     const alerts = Array.isArray(ev?.alerts) ? ev.alerts : []
     const fresh = new Set(inbox.noteNew('alerts', alerts.map(a => a.key)))
     if (!silent) for (const a of alerts) if (fresh.has(a.key)) inbox.append?.({ kind: 'alert', text: a.text })
     const stops = Array.isArray(ev?.stops) ? ev.stops : []
     const freshStops = new Set(inbox.noteNew('stops', stops.map(s => s.id)))
-    if (silent) return
+    if (silent) return void inbox.seed?.()
     for (const s of stops) {
       if (!freshStops.has(s.id)) continue
       inbox.append?.({ kind: 'gate', text: s.text })
@@ -173,7 +175,6 @@ export function makeHealRunner({
     const force = forced
     forced = new Set()
     const s = settings()
-    const first = passes++ === 0
     if (!s.enabled) return
     const state = readHealState(stateFile)
     const seen = new Map((state.seen?.checks || []).map(c => [c.id, c.state]))
@@ -198,7 +199,7 @@ export function makeHealRunner({
       noteChange(c, res, before === 'off' ? undefined : before)
       results.set(c.id, { ...res, at: iso() })
     }
-    await events(first)
+    await events()
     lastAt = iso()
     try {
       updateHealState(st => ({ ...st, seen: { at: lastAt, checks: CHECKS.map(c => ({ id: c.id, name: c.name, state: results.get(c.id)?.state || 'ok', text: results.get(c.id)?.text || '' })) } }), stateFile)
