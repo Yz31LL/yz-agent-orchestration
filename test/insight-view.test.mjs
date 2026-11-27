@@ -130,3 +130,13 @@ test('the Agents page lines: health grouped like the alerts with the paused refr
   assert.match(V.homeHtml({ suggestions: { open: 1 }, health: { enabled: true, failing: [], degraded: [] } }), /ins-home is-note"[\s\S]*<b>1 suggestion from Master<\/b><span class="pe-line-end"><a class="link" href="#\/suggestions">Open suggestions/)
   assert.equal(V.homeHtml({ suggestions: { open: 0 }, health: null }), '')
 })
+
+test('a phone: the page header of Suggestions and Health wraps onto a second line instead of pushing the page sideways', () => {
+  // QA, 2026-11-27: at 390 px the title with its count, the waiting count and Refresh made #/suggestions 397 px wide
+  const css = read('insight.css')
+  const narrow = /@media \(max-width: 720px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] || ''
+  const rule = /body:has\(#suggestionsView:not\(\[hidden\]\)\) #pageHead,\s*body:has\(#healthView:not\(\[hidden\]\)\) #pageHead \{([^}]*)\}/.exec(narrow)?.[1] || ''
+  assert.match(rule, /flex-wrap: wrap/)
+  assert.match(rule, /height: auto/)
+  assert.match(rule, /min-height: var\(--header-h\)/)
+})

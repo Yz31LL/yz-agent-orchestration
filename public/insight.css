@@ -87,6 +87,14 @@
 .ins-rail-count { position: absolute; top: -3px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
   background: var(--accent); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* a phone: the header of these two pages holds a long title with its count, the status, the waiting count and Refresh,
+   which made #/suggestions 397 px wide at 390 (QA, 2026-11-27). It wraps onto a second line instead, as tall as it
+   needs; a header that fits keeps its one 48 px line (the project chip, fixed at its top, stays level with the title). */
+@media (max-width: 720px) {
+  body:has(#suggestionsView:not([hidden])) #pageHead,
+  body:has(#healthView:not([hidden])) #pageHead { flex-wrap: wrap; height: auto; min-height: var(--header-h); padding-top: 6px; padding-bottom: 6px; row-gap: 6px; }
+}
+
 @media (max-width: 700px) {
   .ins-card, .ins-check { padding: 12px; }
   .ins-why { grid-template-columns: minmax(0, 1fr); }
