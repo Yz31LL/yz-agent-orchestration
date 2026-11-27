@@ -175,8 +175,8 @@ test('every cut is said: 100 files of many, 300 lines of a file, the conversatio
 test('Conversation: newest last, who and when and what they did, each comment rendered safely', () => {
   const h = sheet(PR())
   const t = text(h)
-  const S = ctx.window.PhoneState // the times are the phone's own clock
-  assert.ok(t.includes(`Conversation carol · ${S.clock('2026-11-26T10:00:00Z')} · commented Looks close . dave · ${S.clock('2026-11-26T11:00:00Z')} · approved`), t)
+  const S = ctx.window.PhoneState // the times are told against the sheet's own now, never the day the test runs
+  assert.ok(t.includes(`Conversation carol · ${S.when('2026-11-26T10:00:00Z', NOW)} · commented Looks close . dave · ${S.when('2026-11-26T11:00:00Z', NOW)} · approved`), t)
   assert.ok(h.includes(X.render('Looks **close**.')))
   assert.match(text(sheet(PR({ conversation: { items: [], total: 0, cut: false } }))), /Conversation No comments yet\./)
   const changes = { items: [{ kind: 'review', author: '', at: null, state: 'changes', text: 'Fix it', cut: false }], total: 1, cut: false }

@@ -32,7 +32,11 @@
 // Both kinds answer in json (`--output-format json`): the model's reply (the
 // dump path, or the ticket count) is in `.result` and the turn cost in
 // `.total_cost_usd`, recorded as `refresh` spend (spend.mjs). replyOf unwraps
-// it; a plain-text reply is read as is and records no cost.
+// it; a plain-text reply is read as is and records no cost. Each refresh spend line names its collection, so the
+// watchdog can tell which refresh a cost belongs to (heal-checks.mjs refreshCheck).
+// The WATCHDOG can pause a collection's timer (pause/resume, IN MEMORY only, config.json is never written): after 3
+// failed refreshes in a row it stops the spending until the user presses Resume on the Health page. A paused timer
+// skips its turn; the user's own Refresh button still runs. `historyOf(id)` is the last 20 outcomes, in memory.
 
 import { execFile } from 'node:child_process'
 import { mkdirSync, promises as fs, readFileSync, unlinkSync } from 'node:fs'
@@ -58,6 +62,8 @@ const RUN_TIMEOUT_MS = 180_000
 const TICKET_ID = /^[A-Z]+-\d+$/
 /** Board columns in Switchboard order; any other column comes after them. */
 const COLUMN_ORDER = ['CurrentSprint', 'Backlog', 'Icebox']
+/** How many refresh outcomes are kept per collection, in memory. */
+const HISTORY_KEEP = 20
 
 // ═══ the plan: markdown tables whose first cell starts with a ticket id ═══
 
@@ -154,9 +160,9 @@ export function sourceArgs(col, prompt, model) {
  * run's `err` is then only "exited with code 1"; otherwise the run's `err`
  * first, as before.
  */
-function replyOf(r) {
+function replyOf(r, collection) {
   const turn = parseTurn(r?.out)
-  recordCost('refresh', turn.cost)
+  recordCost('refresh', turn.cost, new Date(), { collection })
   const why = turn.isError ? turn.text || r?.err : r?.err || turn.text
   return { text: turn.text, why: String(why || '') }
 }
@@ -268,17 +274,24 @@ export function makeSources({ collections, run, me = CONFIG.factory.me, model = 
   const find = id => cols.find(c => c.id === id)
   const inflight = new Map() // id -> the running refresh's promise
   const last = new Map() // id -> { at, ok, message }
+  const history = new Map() // id -> the last HISTORY_KEEP outcomes, oldest first (the watchdog reads them)
+  const paused = new Set() // ids whose timer the watchdog paused, in memory (see the header)
+  const noteOutcome = (id, outcome) => {
+    last.set(id, outcome)
+    history.set(id, [...(history.get(id) || []), outcome].slice(-HISTORY_KEEP))
+  }
 
   const refreshStatus = id => ({
     id,
     running: inflight.has(id),
     ...(last.get(id) || { at: null, ok: null, message: '' }),
     everyMinutes: find(id)?.refreshMinutes || 0,
+    paused: paused.has(id),
   })
 
   async function fromSwitchboard(col) {
     const r = await run(sourceArgs(col, switchboardPrompt(col), model), { cwd: turnCwd(col) })
-    const reply = replyOf(r)
+    const reply = replyOf(r, col.id)
     const file = reply.text.match(DUMP_PATH)?.[0]
     if (!file) throw new Error(`No dump file came back. ${reply.why.slice(0, 300)}`)
     try {
@@ -297,7 +310,7 @@ export function makeSources({ collections, run, me = CONFIG.factory.me, model = 
     const before = readText(file)
     mkdirSync(SOURCES_DIR, { recursive: true }) // the turn's cwd, so it must exist
     const r = await run(sourceArgs(col, agentPrompt(col, me), model), { cwd: turnCwd(col) })
-    const reply = replyOf(r)
+    const reply = replyOf(r, col.id)
     const after = readText(file)
     if (after == null || after === before) {
       throw new Error(`The turn did not write ${slashPath(col.id)}. ${reply.why.slice(0, 300)}`.trim())
@@ -325,19 +338,25 @@ export function makeSources({ collections, run, me = CONFIG.factory.me, model = 
     const p = (col.kind === 'switchboard' ? fromSwitchboard(col) : fromAgent(col))
       .then(message => {
         recordSource(id, before, readSource(id))
-        last.set(id, { at: new Date().toISOString(), ok: true, message })
+        noteOutcome(id, { at: new Date().toISOString(), ok: true, message })
       })
-      .catch(e => last.set(id, { at: new Date().toISOString(), ok: false, message: e.message }))
+      .catch(e => noteOutcome(id, { at: new Date().toISOString(), ok: false, message: e.message }))
       .finally(() => inflight.delete(id))
       .then(() => refreshStatus(id))
     inflight.set(id, p)
     return p
   }
 
-  /** One timer per collection with refreshMinutes > 0, returned. Unref'd: they never keep the process alive. */
+  /** One timer per collection with refreshMinutes > 0, returned; a paused one skips its turn. Unref'd: they never keep the process alive. */
   function startAutoRefresh() {
-    return cols.filter(c => c.refreshMinutes > 0).map(c => setInterval(() => refreshSource(c.id), c.refreshMinutes * 60_000).unref())
+    return cols.filter(c => c.refreshMinutes > 0).map(c => setInterval(() => (paused.has(c.id) ? null : refreshSource(c.id)), c.refreshMinutes * 60_000).unref())
   }
+  /** The watchdog's pause (heal-runner.mjs): true when a collection of that id was paused now. */
+  const pause = id => (find(id) && !paused.has(id) ? (paused.add(id), true) : false)
+  /** The user's Resume: true when it was paused. */
+  const resume = id => paused.delete(id)
+  /** The last outcomes of a collection's refresh, oldest first: [{ at, ok, message }]. */
+  const historyOf = id => [...(history.get(id) || [])]
 
   async function buildFactory(collectionId) {
     const col = find(collectionId) || cols[0]
@@ -400,12 +419,12 @@ export function makeSources({ collections, run, me = CONFIG.factory.me, model = 
     }
   }
 
-  return { collections: () => cols, readSource, refreshSource, refreshStatus, startAutoRefresh, buildFactory }
+  return { collections: () => cols, readSource, refreshSource, refreshStatus, startAutoRefresh, buildFactory, pause, resume, historyOf }
 }
 
 // ═══ the server's instance, from config.json ═══
 
-export const { collections, refreshSource, refreshStatus, startAutoRefresh, buildFactory } = makeSources({
+export const { collections, refreshSource, refreshStatus, startAutoRefresh, buildFactory, pause, resume, historyOf } = makeSources({
   collections: CONFIG.factory.collections,
   run: claudeRun,
 })

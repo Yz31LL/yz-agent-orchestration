@@ -624,7 +624,8 @@ The sizes below were measured on one setup; yours will differ.
 | The answer relay | Every answer delivered to an agent (and every Retry), and every Request test steps | $0.30 |
 | Explain | A selection the glossary does not know | $0.001 |
 | Learning words | A flow's marked words the glossary does not know, up to 12 per turn, at most 200 words a day | a fraction of a cent |
-| Ticket refresh | Every press of Refresh, and every timer tick | one short turn per collection |
+| Ticket refresh | Every press of Refresh, and every timer tick (the watchdog pauses a timer after 3 failures in a row) | one short turn per collection |
+| Urgent notes to Master | Only with `insight.notifyMaster: "urgent"`: a failing health check or a gate stop, at most one every 30 minutes | $0.01 to $0.03 |
 | Prompt generator | Every Generate on Generators | about $0.10 for the first run in an hour, then about $0.05 |
 | Standup creator | Every Generate on Generators › Standup creator (nothing runs by itself) | about $0.11 (Opus 5.5, medium effort) |
 
@@ -908,3 +909,35 @@ top of the Agents page (under the Alerts line) and on Home. Nothing shows when t
 - The dashboard only reads GitHub here, through the `gh` command, at most once a minute. If it cannot reach GitHub
   the list keeps what it knew and says so under it.
 - The address `#/agents?prs` opens the Agents page scrolled to the list.
+
+## 17. Suggestions and Health
+
+**Suggestions** (rail › Quality › Suggestions) are improvements Master, your coordinator, proposes after reading the
+whole orchestration. Each card says what to change, the evidence it saw (numbers, flows, alerts), the kind (rule,
+setting, process, fix), the agent or setting it is for, and the effort.
+
+- **Accept** keeps it as a note for you or Master to act on. Nothing changes by itself.
+- **Accept and add the rule** shows on a rule for one agent: it adds the rule to that agent, the same as your own
+  edit on the Agents page, and the Learn page gives it a verdict in two weeks.
+- **Reject** takes an optional reason. Master reads it in its next look and does not propose the same idea again.
+- Your decision reaches Master the next time it reads its digest. No message is sent and nothing is paid.
+- The Suggestions link shows how many wait; Home and the top of the Agents page say so too.
+
+**Health** (rail › Agents › Health) is the dashboard watching itself. Each check is OK, Degraded (something is off
+but work goes on) or Failing (something is broken, or costing money for nothing). It repairs only four things by
+itself, each safe and reversible, and shows each in the log at the bottom:
+
+- a paid ticket refresh that failed 3 times is **paused** (press **Resume** once it is fixed; the line at the top
+  of the Agents page says what it cost since it last worked, with the real error);
+- deliveries to an agent that failed 3 times are **held** with no paid turn (press **Release** to send them);
+- a damaged index or store is **copied aside** and rebuilt where the dashboard can;
+- a background job that went silent is **started once more**.
+
+Other dashboard copies left running for more than 6 hours are listed with a **Stop** button; nothing stops one by
+itself. Only copies in a `.worktrees` folder count: the main checkout is your live dashboard and is never listed. The disk, config, server and agents checks only tell you (**Copy a nudge** copies a sentence for you to paste
+into a stuck session). Switch any check off with its **On** box. In config.json, `healing.repairs: false` makes it
+report only, `healing.enabled: false` turns it off.
+
+Master can be told about failures straight away with `insight.notifyMaster: "urgent"` (one short relay turn each,
+about 1 to 3 cents, at most one every 30 minutes, only while Master's session is open). Left at `off`, Master reads
+what changed in its digest, for free.

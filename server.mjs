@@ -20,7 +20,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CONFIG, prNow } from './config.mjs'
+import { CONFIG, labelLookup, prNow } from './config.mjs'
 import { chatStatus } from './chat.mjs'
 import { collections, readSource, startAutoRefresh } from './factory.mjs'
 import { factoryRoute } from './factory-routes.mjs'
@@ -54,6 +54,7 @@ import { makeTokenRoute } from './token-routes.mjs'
 import { makePredictRoute } from './predict-routes.mjs'
 import { makeRoutingRoute } from './routing-routes.mjs'
 import { makePrListRoute } from './prlist-routes.mjs'
+import { makeInsightServer } from './insight-wiring.mjs'
 // the four smart features connected through their contracts (smart-wiring.mjs)
 import { learnLessons, learnSignals, riskLevelOf, tokensFinal, wireRouting } from './smart-wiring.mjs'
 import { listLessons } from './quality-lessons.mjs'
@@ -89,10 +90,8 @@ const CURFEW_HOUR = CONFIG.stopHour
 
 /** Sessions that write code, and the names the user calls them. */
 const CODING_AGENTS = CONFIG.codingAgents
-/** Names the user gave sessions whose registry name says otherwise. */
-const ALIASES = CONFIG.aliases
-/** The label a session shows under: the coordinator by its configured label (config coordinatorLabel), any other by the session maps. */
-const labelOf = name => (name === CONFIG.coordinator ? CONFIG.coordinatorLabel : CODING_AGENTS[name] ?? ALIASES[name] ?? name)
+/** The label a session shows under: the coordinator by its configured label, any other by codingAgents, then aliases (config.mjs labelLookup). */
+const labelOf = labelLookup(CONFIG)
 /** The branches the levels compare (config levels): the coordinator's working branch, remote dev and stage. */
 const LEVELS = CONFIG.levels
 
@@ -908,6 +907,8 @@ const routingRoute = makeRoutingRoute({ port: PORT }) // the Routing page, ticke
 const prListRoute = makePrListRoute({ gh, git, remote: () => prNow().remote })
 /** The Learn page (learn-wiring.mjs): retrospectives, the weekly Learn run and a verdict on every rule change. */
 const learnRoute = makeLearnServerRoute({ port: PORT, tokens: () => tokenRoute.snapshot(), lessons: learnLessons(listLessons), signals: learnSignals(signals) })
+/** Master's insight (insight-wiring.mjs): the digest it reads in one go, its suggestions, and the self-healing watchdog. */
+const insightServer = makeInsightServer({ port: PORT, cachedStatus: () => cache?.data ?? null, getStatus, relay, tokenRoute, predictRoute, prListRoute, present: agentHasSession, sessionNames: async () => new Map((await liveSessions()).map(s => [s.sessionId, s.name])), labelOf })
 /** The paths factory-routes.mjs answers. */
 const FACTORY_PREFIXES = ['/api/factory', '/api/chat', '/api/flows', '/api/trash', '/api/archive', '/api/human', '/api/tickets/', '/api/commit', '/api/explain', '/api/glossary', '/api/since', '/api/spend', '/api/settings', '/api/pipeline', '/api/qa', '/api/agents/rules', '/api/score', '/api/log', '/api/time', '/evidence/', '/api/outputs']
 
@@ -915,6 +916,8 @@ const server = createServer(async (req, res) => {
   // a website that rebinds its name to 127.0.0.1 sends its own Host: only requests addressed to us are answered (local-origin.mjs)
   if (!hostAllowed(req.headers.host, PORT)) return res.writeHead(403, { 'content-type': 'text/plain' }).end('Unknown host.')
   const url = new URL(req.url, 'http://localhost')
+  const began = Date.now()
+  res.on('finish', () => insightServer.noteWork(`${req.method} ${url.pathname}`, Date.now() - began)) // the watchdog's Server check
   projectRoute.track(req, res) // a write still being answered holds a project switch back
   try {
     if (await projectRoute(req, res, url)) return
@@ -936,6 +939,7 @@ const server = createServer(async (req, res) => {
     if (await learnRoute(req, res, url)) return
     if (await phoneRoute(req, res, url)) return
     if (await prListRoute(req, res, url)) return
+    if (await insightServer.route(req, res, url)) return
     if (url.pathname === '/api/orchestration') {
       const data = await orchestration(url.searchParams.get('c'), url.searchParams.has('refresh'))
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -1003,6 +1007,7 @@ qualityRoute.start() // risk labels, and the automatic lesson and second-opinion
 predictRoute.start() // Predict and warn: an estimate stored once on each open flow, now and every minute
 routingRoute.start() // Routing: each finished flow gets its one outcome line (routing-outcomes.mjs), once a minute
 prListRoute.start() // the Pull requests list: the states read now and every minute, in the background
+insightServer.start() // the watchdog: its checks now and every minute, its four safe repairs (heal-runner.mjs)
 
 // ─── end-of-day stop ───────────────────────────────────────────────────────────────
 

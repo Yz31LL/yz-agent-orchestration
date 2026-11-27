@@ -181,6 +181,13 @@ export function coordinatorSettings(raw, warn = console.warn) {
   return { coordinator, coordinatorLabel }
 }
 
+/**
+ * The label a session shows under, for a loaded `config`: the coordinator by its configured label, any other by
+ * `codingAgents`, then `aliases`, else its own name. ONE lookup: server.mjs labels the sessions with it, and so does
+ * the digest built from the files (insight-files.mjs), so both name an agent the same way.
+ */
+export const labelLookup = config => name => (name === config.coordinator ? config.coordinatorLabel : config.codingAgents?.[name] ?? config.aliases?.[name] ?? name)
+
 /** The chat agent's name when the config gives none (the Ask drawer, pipeline.mjs's chat node). */
 export const DEFAULT_CHAT_NAME = 'Independent'
 

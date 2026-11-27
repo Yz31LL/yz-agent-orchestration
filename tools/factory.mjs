@@ -13,6 +13,8 @@
 //   node tools/factory.mjs phone-pin | phone-setup        the person sets the phone PIN, or picks the address phone access listens on (tools/phone-cli.mjs)
 //   node tools/factory.mjs context add "<title>" (--text "..." | --file <path>) | list | remove <id>
 //                                                         what the Prompt generator is told (tools/context-cli.mjs)
+//   node tools/factory.mjs orchestration | suggest | suggestions | suggest-drop    the coordinator's whole-picture digest
+//                                                         and its suggestions to the user (tools/insight-cli.mjs)
 //
 // Marks go to data/factory-state.json; flows to data/flows/<id>.json; words to data/glossary.json. The page
 // picks either up on its next poll. `decide` is the old command kept for
@@ -26,6 +28,7 @@ import { runContext } from './context-cli.mjs'
 import { runPinCli } from './pr-pin.mjs'
 import { runPhonePin, runPhoneSetup } from './phone-cli.mjs'
 import { runTerm } from './term-cli.mjs'
+import { INSIGHT_BOOLEAN, runOrchestration, runSuggestions } from './insight-cli.mjs'
 import { wireRouting } from '../smart-wiring.mjs'
 import { riskOf } from '../quality-risk.mjs'
 import { flowTokens } from '../predict-flow-tokens.mjs'
@@ -36,7 +39,7 @@ wireRouting({ riskOf, flowTokens })
 
 const [cmd, ...rest] = process.argv.slice(2)
 // Every flag that is boolean anywhere is boolean here, so `--before --by X` keeps the name (each command parses its own).
-const f = flags(rest, undefined, ANY_BOOLEAN)
+const f = flags(rest, undefined, new Set([...ANY_BOOLEAN, ...INSIGHT_BOOLEAN]))
 /** Who is running this: the agent's dashboard label. '' when none was given (see NO_NAME). */
 const by = f.by || process.env.FACTORY_BY || ''
 const ctx = { by, cwd: process.cwd() }
@@ -89,6 +92,10 @@ try {
     finish(runTerm(rest))
   } else if (cmd === 'context') {
     finish(runContext(rest))
+  } else if (cmd === 'orchestration') {
+    runOrchestration(f, ctx).then(finish, e => finish({ out: e.message, code: 1 }))
+  } else if (cmd === 'suggest' || cmd === 'suggestions' || cmd === 'suggest-drop') {
+    finish(runSuggestions(cmd, f, ctx))
   } else if (cmd === 'show') {
     const id = String(f._[0] || '').toUpperCase()
     const flows = listFlows({ ticket: id }).flows.map(fl => fl.id)
@@ -102,6 +109,12 @@ try {
   show <ID>
   context add "<title>" (--text "..." | --file <path>) | context list | context remove <id>
                         what the Prompt generator is told before it writes
+  orchestration [--json] [--section pipeline|work|numbers|signals|health|suggestions]
+                        the whole orchestration in one read, for the coordinator; its read marks the inbox read
+  suggest "<what to change>" --why "<evidence: numbers, flows, alerts>" --kind rule|setting|process|fix
+    [--target <agent label|setting key>] [--effort small|medium|large]   coordinator only: the user decides
+  suggestions [--open]  the coordinator's suggestions and what the user did with them
+  suggest-drop <id>     the coordinator takes back its own unanswered suggestion
   pr-pin               set the send PIN (typed by you in a terminal, never piped)
   phone-pin            set the phone PIN (typed by you in a terminal, never piped)
   phone-setup          pick the address phone access listens on, after a typed yes`)

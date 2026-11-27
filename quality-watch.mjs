@@ -14,6 +14,7 @@
 // runners, git and the settings are injected, so tests run every step with stubs.
 
 import { CONFIG } from './config.mjs'
+import { beat, registerLoop } from './heal-beats.mjs'
 import { listFlows, readFlow, writeFlow } from './flows.mjs'
 import { qualityOf } from './quality-config.mjs'
 import { criticDue } from './quality-critic.mjs'
@@ -94,6 +95,7 @@ export function makeQualityWatch({ extractor, critic, git, config = () => CONFIG
   async function tick() {
     if (ticking) return 'busy'
     ticking = true
+    const t = Date.now()
     try {
       const c = config()
       try {
@@ -109,9 +111,12 @@ export function makeQualityWatch({ extractor, critic, git, config = () => CONFIG
       return 'done'
     } finally {
       ticking = false
+      beat('quality', Date.now() - t) // the watchdog's heartbeat (heal-beats.mjs)
     }
   }
   function start() {
+    // the watchdog's one restart drops a hung tick's guard and ticks again
+    registerLoop('quality', { label: 'Quality watch (risk labels and lessons)', everyMs: every, restart: () => ((ticking = false), tick()) })
     void tick()
     return setInterval(() => void tick(), every).unref()
   }

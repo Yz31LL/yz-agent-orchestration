@@ -89,7 +89,7 @@ test('searching with no flows or tickets loaded does not throw and returns pages
   const items = P.gather({}) // no FlowsView, FactoryView, App, Theme or document at all
   const kinds = [...new Set(items.map(i => i.kind))]
   assert.deepEqual(kinds, ['page', 'action'])
-  assert.deepEqual(labels(P.search('', items)).slice(0, 9), ['Home', 'Flows', 'Tickets', 'Generators', 'Agents', 'Subagents', 'Orchestration bank', 'Routing', 'QA'])
+  assert.deepEqual(labels(P.search('', items)).slice(0, 10), ['Home', 'Flows', 'Tickets', 'Generators', 'Agents', 'Subagents', 'Orchestration bank', 'Routing', 'Health', 'QA'])
   assert.ok(labels(P.search('', items)).includes('Ask'))
   assert.deepEqual(plain(P.search('zzz', items)), [])
   assert.doesNotThrow(() => P.search(undefined, undefined))

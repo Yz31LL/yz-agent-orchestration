@@ -43,7 +43,7 @@ test('the route #/learn, and the shell wires it: title, section, page object, ic
   assert.match(shell, /learn: 'learnView'/)
   assert.match(shell, /learn: 'LearnPage'/)
   const quality = shellWindow.RailGroups.groups().find(g => g.id === 'quality').entries
-  assert.equal(quality.map(e => e.view).join(' '), 'qa lessons learn')
+  assert.equal(quality.map(e => e.view).join(' '), 'qa lessons learn suggestions') // Suggestions (insight-pages.js) follows Learn
   assert.equal(shellWindow.RailGroups.linkFor('learn').href, '#/learn')
   assert.match(shellWindow.RailGroups.linkFor('learn').icon, /<path/, 'its icon: a light bulb')
   const html = read('index.html')

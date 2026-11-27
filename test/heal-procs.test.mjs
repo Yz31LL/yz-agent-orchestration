@@ -1,0 +1,138 @@
+// Tests for heal-procs.mjs with an INJECTED process list and an injected kill that only records: no test looks at,
+// or stops, a process it did not start. The list finds the node processes that run a server.mjs; the user's Stop
+// stops only a copy of THIS repo or one of its worktrees, started when the page showed it, never this server.
+
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { dashboardServers, mainRoot, makeProcs, parseListing, seededProcs, serverScript } from '../heal-procs.mjs'
+
+const HERE = 'C:\\Users\\me\\agent-dashboard\\.worktrees\\insight'
+const NOW = Date.parse('2026-11-26T12:00:00.000Z')
+const listing = (procs, ports = []) => JSON.stringify({ procs, ports })
+const P = (pid, CommandLine, Start = '2026-11-26T01:00:00.0000000Z') => ({ ProcessId: pid, CommandLine, Start })
+const LISTING = listing([
+  P(100, '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\me\\agent-dashboard\\server.mjs'),
+  P(101, 'node "C:\\Users\\me\\agent-dashboard\\.worktrees\\phone pr\\server.mjs"', '2026-11-25T20:00:00.0000000Z'),
+  P(102, 'node server.mjs'),
+  P(103, 'node C:\\Users\\me\\other-app\\server.mjs'),
+  P(104, 'node C:\\Users\\me\\agent-dashboard\\phone-server.mjs'),
+  P(105, 'node --test test/server.test.mjs'),
+  P(106, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\a\\nested\\server.mjs'),
+  P(107, null),
+], [{ LocalPort: 4317, OwningProcess: 100 }, { LocalPort: 4318, OwningProcess: 100 }, { LocalPort: 4497, OwningProcess: 101 }])
+
+test('the listing: PowerShell JSON read, a single object as a list, the ports per process', () => {
+  const { procs, ports } = parseListing(LISTING)
+  assert.equal(procs.length, 8)
+  assert.deepEqual(ports.get(100), [4317, 4318])
+  const one = parseListing(JSON.stringify({ procs: P(5, 'node x'), ports: { LocalPort: 1, OwningProcess: 5 } }))
+  assert.equal(one.procs.length, 1)
+  assert.throws(() => parseListing('not json'), /did not come back as JSON/)
+})
+
+test('which processes are dashboard servers, with their folder, and which may be stopped from here', () => {
+  assert.equal(serverScript('node server.mjs'), 'server.mjs')
+  assert.equal(serverScript('node C:\\x\\phone-server.mjs'), null)
+  assert.equal(serverScript('node --test test/server.test.mjs'), null)
+  assert.equal(mainRoot(HERE), 'C:/Users/me/agent-dashboard')
+  assert.equal(mainRoot('C:\\Users\\me\\agent-dashboard'), 'C:/Users/me/agent-dashboard')
+  // ONLY a worktree's own copy is a dashboard copy (QA, 2026-11-27: a preview offered to stop the LIVE dashboard)
+  const s = dashboardServers({ ...parseListing(LISTING), here: HERE })
+  assert.deepEqual(s.map(x => [x.pid, x.port, x.folder]), [[101, 4497, 'C:/Users/me/agent-dashboard/.worktrees/phone pr']])
+  // never listed: the main checkout (100, the live dashboard), a relative path (102: its folder is not in its command
+  // line, and it may be the live one), another app (103), a folder below a worktree (106).
+  // The same answer from the main checkout itself: its copies in .worktrees, never itself by its folder
+  const fromMain = dashboardServers({ ...parseListing(LISTING), here: 'C:\\Users\\me\\agent-dashboard' })
+  assert.deepEqual(fromMain.map(x => x.pid), [101])
+})
+
+// QA (2026-11-27): the live dashboard started as <repo>\.worktrees\..\server.mjs was listed as a stray and could be
+// stopped, because the path was matched before its dots were resolved.
+test('a path with .. in it is resolved first: the main checkout spelled through .worktrees is never a copy', () => {
+  const procs = [
+    { pid: 301, command: 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\..\\server.mjs', startedAt: 'x' },
+    { pid: 302, command: 'node C:/Users/me/agent-dashboard/.worktrees/a/../../server.mjs', startedAt: 'x' },
+    { pid: 303, command: 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\a\\..\\b\\server.mjs', startedAt: 'x' },
+    { pid: 304, command: 'node C:\\Users\\me\\other\\..\\agent-dashboard\\.worktrees\\c\\.\\server.mjs', startedAt: 'x' },
+  ]
+  const s = dashboardServers({ procs, ports: new Map(), here: 'C:\\Users\\me\\agent-dashboard' })
+  assert.deepEqual(
+    s.map(x => [x.pid, x.folder]),
+    [[303, 'C:/Users/me/agent-dashboard/.worktrees/b'], [304, 'C:/Users/me/agent-dashboard/.worktrees/c']]
+  )
+})
+
+test('stop: only on a fresh listing, only a copy of this repo or a worktree, the same start time, never this server', async () => {
+  const killed = []
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 100, now: () => NOW })
+  const AT = '2026-11-26T01:00:00.0000000Z'
+  assert.match((await procs.stop(100, AT)).error, /That is this dashboard/)
+  assert.match((await procs.stop(103, AT)).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(102, AT)).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(106, AT)).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(999, AT)).error, /not running any more/)
+  assert.match((await procs.stop('x', AT)).error, /Say which copy/)
+  assert.match((await procs.stop(101, '2026-11-26T09:00:00.0000000Z')).error, /now belongs to another process/)
+  assert.deepEqual(killed, [], 'nothing stopped so far')
+  const ok = await procs.stop(101, '2026-11-25T20:00:00.0000000Z')
+  assert.equal(ok.ok, true)
+  assert.equal(ok.port, 4497)
+  assert.deepEqual(killed, [101])
+  // a kill that fails says so in plain words
+  const denied = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: () => { throw Object.assign(new Error('x'), { code: 'EPERM' }) }, here: HERE, selfPid: 1 })
+  assert.match((await denied.stop(101, '2026-11-25T20:00:00.0000000Z')).error, /Windows did not allow it/)
+})
+
+test('stop: refused without the start time the page showed, so a pid given to another process since is never stopped', async () => {
+  // QA, 2026-11-27: with no startedAt sent, the start-time check was skipped
+  const killed = []
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 1 })
+  for (const at of [undefined, '', null, 42, '   ']) assert.match((await procs.stop(101, at)).error, /when it started/, String(at))
+  assert.deepEqual(killed, [])
+})
+
+test('servers(): a failed or missing listing is no list with the reason; off Windows it is not read', async () => {
+  const bad = makeProcs({ exec: async () => ({ ok: false, out: '', err: 'Access denied\nmore' }), here: HERE })
+  assert.deepEqual(await bad.servers(), { procs: null, error: 'Access denied' })
+  const linux = makeProcs({ here: HERE, platform: 'linux' })
+  assert.deepEqual(await linux.servers(), { procs: null, error: 'the process list is only read on Windows' })
+  const killed = []
+  const off = makeProcs({ exec: async () => ({ ok: false, err: 'x' }), kill: p => killed.push(p), here: HERE })
+  assert.match((await off.stop(101, '2026-11-25T20:00:00.0000000Z')).error, /could not be listed, so nothing was stopped/)
+  assert.deepEqual(killed, [])
+})
+
+test('a preview never offers to stop the live dashboard: from a worktree the main checkout is not listed nor stopped', async () => {
+  // the live dashboard runs from the main checkout; this preview runs from .worktrees/insight (QA, 2026-11-27)
+  const live = listing([
+    P(200, 'node C:\\Users\\me\\agent-dashboard\\server.mjs', '2026-11-20T08:00:00.0000000Z'),
+    P(201, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\insight\\server.mjs', '2026-11-26T11:00:00.0000000Z'),
+    P(202, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\old\\server.mjs', '2026-11-25T08:00:00.0000000Z'),
+    P(203, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\young\\server.mjs', '2026-11-26T10:00:00.0000000Z'),
+  ], [{ LocalPort: 4317, OwningProcess: 200 }, { LocalPort: 4497, OwningProcess: 201 }, { LocalPort: 4498, OwningProcess: 202 }])
+  const killed = []
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: live }), kill: pid => killed.push(pid), here: HERE, selfPid: 201, now: () => NOW })
+  const { procs: listed } = await procs.servers()
+  assert.deepEqual(listed.map(x => x.pid), [201, 202, 203], 'the worktree copies only; the main checkout is never one')
+  assert.match((await procs.stop(200, '2026-11-20T08:00:00.0000000Z')).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(203, '2026-11-26T10:00:00.0000000Z')).error, /less than 6 hours/)
+  assert.deepEqual(killed, [])
+  assert.equal((await procs.stop(202, '2026-11-25T08:00:00.0000000Z')).ok, true)
+  assert.deepEqual(killed, [202])
+})
+
+test('FACTORY_TEST_PROCS: a preview reads its seeded list, never the real one, and its Stop only records', async () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'heal-procs-seed-')), 'procs.json')
+  fs.writeFileSync(file, LISTING)
+  const said = []
+  const procs = seededProcs(file, { here: HERE, say: t => said.push(t), now: () => NOW, selfPid: 1 })
+  assert.deepEqual((await procs.servers()).procs.map(x => x.pid), [101])
+  assert.equal((await procs.stop(101, '2026-11-25T20:00:00.0000000Z')).ok, true)
+  assert.match(said.join(' '), /process 101 was NOT stopped/)
+  fs.rmSync(path.dirname(file), { recursive: true, force: true })
+})

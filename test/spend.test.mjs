@@ -43,7 +43,7 @@ test('recordCost writes nothing for a missing, zero, negative or non-number cost
 test('recordCost refuses an unknown kind, and never throws', () => {
   assert.equal(recordCost('lunch', 1), false)
   assert.equal(fs.existsSync(SPEND_FILE), false)
-  assert.deepEqual([...KINDS], ['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake', 'retro', 'learn', 'phone'])
+  assert.deepEqual([...KINDS], ['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake', 'retro', 'learn', 'phone', 'insight'])
   assert.equal(recordCost('script', 0.2, at(13, 11)), true, 'a Prompt generator run is a kind of its own')
   assert.equal(recordCost('standup', 0.07, at(13, 11)), true, 'and so is a Standup creator run')
   fs.rmSync(SPEND_FILE, { force: true })
@@ -116,7 +116,7 @@ test('recent is the last 20 lines, newest first, whatever their day', () => {
 })
 
 test('no file yet is zero, every kind at zero, nothing recent', () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(readSpend(at(13, 9)))), { today: 0, byKind: { chat: 0, relay: 0, explain: 0, refresh: 0, script: 0, standup: 0, lesson: 0, critic: 0, intake: 0, retro: 0, learn: 0, phone: 0 }, recent: [] })
+  assert.deepEqual(JSON.parse(JSON.stringify(readSpend(at(13, 9)))), { today: 0, byKind: { chat: 0, relay: 0, explain: 0, refresh: 0, script: 0, standup: 0, lesson: 0, critic: 0, intake: 0, retro: 0, learn: 0, phone: 0, insight: 0 }, recent: [] })
 })
 
 // ═══ parseTurn: a `-p --output-format json` reply ═══

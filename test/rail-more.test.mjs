@@ -31,7 +31,7 @@ test('the bar holds Home, Flows, Tickets and Agents, in rail order; every other 
   for (const v of R.bar()) assert.ok(R.linkFor(v), v)
   const more = plain(R.more())
   assert.deepEqual(more.map(g => g.label), ['Work', 'Agents', 'Quality', 'History'])
-  assert.deepEqual(more.map(g => g.entries.map(e => e.view)), [['script'], ['subagents', 'bank', 'routing'], ['qa', 'lessons', 'learn'], ['timeline', 'archive', 'glossary']])
+  assert.deepEqual(more.map(g => g.entries.map(e => e.view)), [['script'], ['subagents', 'bank', 'routing', 'health'], ['qa', 'lessons', 'learn', 'suggestions'], ['timeline', 'archive', 'glossary']])
 })
 
 test('bar, More and the foot together hold every page exactly once', () => {

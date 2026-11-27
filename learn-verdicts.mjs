@@ -106,7 +106,7 @@ const keyOf = c => `${c.at}|${c.label}`
 function entryOf(line, { before = null, after = null, numbers, afterDays, id, link = null, backfilled = false }) {
   const at = Date.parse(line.at)
   const e = {
-    id, at: line.at, label: line.label, by: line.by === 'learn' ? 'learn' : 'you',
+    id, at: line.at, label: line.label, by: line.by === 'learn' || line.by === 'master' ? line.by : 'you',
     added: Array.isArray(line.added) ? [...line.added] : [], removed: Array.isArray(line.removed) ? [...line.removed] : [], spec: line.spec ?? null,
     baseline: numbers(at - 14 * DAY, at), dueAt: new Date(at + afterDays * DAY).toISOString(), state: 'waiting', waits: 0,
   }

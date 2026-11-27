@@ -7,7 +7,9 @@
 //
 // Rules this file keeps:
 // - ⚠️ The file is APPEND-ONLY, written with appendFileSync, one JSON line per
-//   turn: { "at": ISO, "kind": "chat|relay|explain|refresh|script|standup|lesson|critic|intake|retro|learn|phone", "usd": number }.
+//   turn: { "at": ISO, "kind": "chat|relay|explain|refresh|script|standup|lesson|critic|intake|retro|learn|phone|insight", "usd": number },
+//   and for a ticket refresh `"collection": "<id>"` (which collection paid it: the watchdog, heal-checks.mjs).
+//   `insight` is an urgent message to the coordinator (insight-inbox.mjs, only with insight.notifyMaster urgent).
 //   That is deliberate: atomic-write.mjs (temp file + rename) is for files
 //   rewritten whole, while one appended line is a single small write that
 //   never rewrites the lines before it. A reader that meets a torn or hand-made
@@ -27,7 +29,9 @@ import { DATA_DIR } from './factory-state.mjs'
 
 export const SPEND_FILE = path.join(DATA_DIR, 'spend.jsonl')
 /** The headless turns the dashboard runs itself. */
-export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake', 'retro', 'learn', 'phone'])
+export const KINDS = Object.freeze(['chat', 'relay', 'explain', 'refresh', 'script', 'standup', 'lesson', 'critic', 'intake', 'retro', 'learn', 'phone', 'insight'])
+/** The one extra field a line may carry: which collection a refresh was for (an id, as factory.mjs validates them). */
+const COLLECTION = /^[A-Za-z0-9_-]{1,60}$/
 const RECENT = 20
 
 const isCost = usd => typeof usd === 'number' && Number.isFinite(usd) && usd > 0
@@ -37,11 +41,12 @@ const isCost = usd => typeof usd === 'number' && Number.isFinite(usd) && usd > 0
  * not a positive number (a turn whose result had none). Returns whether a line
  * was written; never throws.
  */
-export function recordCost(kind, usd, at = new Date()) {
+export function recordCost(kind, usd, at = new Date(), { collection } = {}) {
   if (!KINDS.includes(kind) || !isCost(usd)) return false
   try {
     mkdirSync(DATA_DIR, { recursive: true })
-    appendFileSync(SPEND_FILE, JSON.stringify({ at: at.toISOString(), kind, usd }) + '\n')
+    const named = typeof collection === 'string' && COLLECTION.test(collection) ? { collection } : {}
+    appendFileSync(SPEND_FILE, JSON.stringify({ at: at.toISOString(), kind, usd, ...named }) + '\n')
     return true
   } catch (err) {
     console.error(`spend: could not record a ${kind} cost of ${usd}: ${err?.message || err}`)
@@ -59,7 +64,8 @@ function parseLine(text) {
   }
   if (!l || typeof l !== 'object' || !KINDS.includes(l.kind) || !isCost(l.usd) || typeof l.at !== 'string') return null
   const t = new Date(l.at)
-  return Number.isNaN(t.getTime()) ? null : { at: l.at, kind: l.kind, usd: l.usd, t }
+  const named = typeof l.collection === 'string' && COLLECTION.test(l.collection) ? { collection: l.collection } : {}
+  return Number.isNaN(t.getTime()) ? null : { at: l.at, kind: l.kind, usd: l.usd, t, ...named }
 }
 
 const sameLocalDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -124,6 +130,20 @@ export function spendBetween(fromMs, toMs) {
     byKind[l.kind] += l.usd
   }
   return { usd, turns, byKind }
+}
+
+/**
+ * Every well-formed line of one `kind`, oldest first, as { at, kind, usd, collection? }: the watchdog's look at what the
+ * ticket refresh cost since it last worked (heal-runner.mjs). A file that is not there is no lines.
+ */
+export function spendLines(kind) {
+  let text = ''
+  try {
+    text = readFileSync(SPEND_FILE, 'utf8')
+  } catch {
+    return []
+  }
+  return text.split(/\r?\n/).map(parseLine).filter(l => l && l.kind === kind).map(({ t, ...rest }) => rest)
 }
 
 /** `s` parsed as JSON, or null when it is not JSON. */
