@@ -1005,6 +1005,7 @@ flow route <flow> --type build|review|ask   # change the planned route on purpos
 flow step <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
 flow check <flow> "<title>" [same options]
 flow ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
+flow answered <flow> <node> --answer yes|no|"<text>" [--note "<the user's words>"]   # the user answered this open ask in your chat
 flow note <flow> "<text>" [--after n2]
 flow status <flow> <node> <todo|doing|done|blocked|skipped>
 flow evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
@@ -1497,6 +1498,33 @@ Add it to your user settings (`~/.claude/settings.json`), next to any hooks you 
 It fails open: bad input, an unreadable transcript or any error exits 0 with no output, so it never gets in a
 session's way. To try it without a hook:
 `echo '{"session_id":"x","transcript_path":"<a session .jsonl>","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash"}' | node tools/waiting-hook.mjs`.
+
+### Questions answered in the chat (the open-asks hook)
+
+You often answer an agent's `flow ask` in its chat instead of on the dashboard. Only the agent can tell whether a
+message answers one, so `tools/open-asks-hook.mjs` (a `UserPromptSubmit` hook) reminds it: each time you send a
+session a message, the session gets a short note listing its asks that still wait (asks on open flows whose agent
+is the session's name, from the harness's session registry), with the command that records a chat answer:
+
+```
+flow answered <flow> <node> --answer yes|no|"<text>" --note "<the user's words>"
+```
+
+The ask then leaves Human review, the flow's story says "Answered in the chat", and the chart and drawer show
+"answered in chat" where a delivery state would be. The relay never sends it back, since the agent already has the
+answer. Only an OPEN ask can be recorded this way: an answer you gave on the dashboard is never overwritten, and
+answering or reopening it on the dashboard replaces the chat record. A session with no open asks gets no note.
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node <path to this clone>/tools/open-asks-hook.mjs" }] }]
+  }
+}
+```
+
+It fails open like the waiting hook: any error exits 0 with no output, so your message always goes through. To
+try it: `echo '{"session_id":"<a live session id>"}' | node tools/open-asks-hook.mjs`.
 
 ### Collections by kind
 

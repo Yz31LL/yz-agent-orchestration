@@ -25,7 +25,7 @@ import { CONFIG } from '../config.mjs'
 import { parseDiagram } from '../diagram-text.mjs'
 import { pipelineGraph } from '../pipeline.mjs'
 import {
-  addEvidence, addNode, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
+  addEvidence, addNode, applyChatAnswer, createFlow, derive, EVIDENCE_DIR, EVIDENCE_KINDS, listFlows,
   agentMoveRefusal, mergeKeepingAnswers, readFlow, setNodeStatus, validateFlow, visualOf, withPipeline, writeFlow,
 } from '../flows.mjs'
 import { securityBlock } from '../flow-security.mjs'
@@ -93,6 +93,8 @@ export const USAGE = `usage: flow <command>
   step|check <flow> "<title>" [--id n5] [--env stage] [--why "..."] [--after n2,n3] [--status doing]
   ask <flow> "<question>" --why "<why you need this answer>" [--yes "..."] [--no "..."] [--text] [--after n2]
    always pass --why: the user sees it under the question everywhere the ask shows (an ask without one warns)
+  answered <flow> <node> --answer yes|no|"<text>" [--note "<the user's words>"]
+   the user answered your open ask in your chat instead: it stops waiting in Human review (never changes a set answer)
   note <flow> "<text>" [--after n2]
   status <flow> <node> <todo|doing|done|blocked|skipped>
   evidence <flow> <node> --commit <sha> | --diff <worktree> | --test "<line>" [--file path] | --shot <path> | --url <url> | --note "<text>" [--label "..."]
@@ -234,6 +236,15 @@ function addCmd(type) {
     const done = ok(`${flow.id} ${node.id}: ${type === 'ask' ? 'waiting on the user' : node.title}`)
     return noWhy(node) ? { ...done, err: NO_WHY } : done
   }
+}
+
+// The user answered an open ask in the agent's chat: record it so the dashboard stops asking.
+function cmdAnswered(f) {
+  const [id, nodeId] = f._
+  const flow = load(id)
+  applyChatAnswer(flow, nodeId, f.answer === undefined ? null : String(f.answer), f.note)
+  writeFlow(flow)
+  return ok(`${flow.id} ${nodeId}: answered in the chat`)
 }
 
 function cmdStatus(f) {
@@ -504,6 +515,7 @@ const COMMANDS = {
   step: addCmd('step'),
   check: addCmd('check'),
   ask: addCmd('ask'),
+  answered: cmdAnswered,
   note: addCmd('note'),
   status: cmdStatus,
   evidence: cmdEvidence,

@@ -279,6 +279,7 @@
       const at = `x="${b.x + b.w - 10}" y="${b.y + b.h + 13}" text-anchor="end"`
       const retry = `<tspan class="fc-retry" data-retry="${esc(n.id)}">retry</tspan>`
       switch (window.FlowDrawer.deliveryState(n)) {
+        case 'chat': return `<text class="fc-sent" ${at}>answered in chat</text>`
         case 'sent': return `<text class="fc-sent" ${at}>sent</text>`
         case 'failed': return `<text class="fc-undelivered" ${at}><title>${esc(n.deliveryError)}</title>not delivered · ${retry}</text>`
         case 'sending': return `<text class="fc-sending" ${at}>sending…</text>`

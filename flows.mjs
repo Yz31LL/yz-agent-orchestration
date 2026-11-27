@@ -567,6 +567,23 @@ export function applyAnswer(flow, nodeId, answer, note) {
   if (note !== undefined) node.note = String(note)
   node.sentAt = null
   node.deliveryError = null
+  delete node.answeredIn // the user's own answer here replaces one an agent recorded from the chat
+  return node
+}
+
+/**
+ * An answer the user gave in the agent's chat, recorded by that agent (`flow answered`) so the ask stops
+ * waiting in Human review. Only an OPEN ask: an agent never overwrites what the user chose on the dashboard.
+ * Stamped as delivered (the agent already has the answer), so the relay never pushes it back.
+ */
+export function applyChatAnswer(flow, nodeId, answer, note) {
+  const node = findNode(flow, nodeId)
+  if (node.type !== 'ask') throw new Error(`node ${nodeId} is not an ask`)
+  if (node.answer != null) throw new Error(`${nodeId} is already answered; only the user changes an answer, on the dashboard`)
+  if (answer == null) throw new Error('answered needs --answer')
+  applyAnswer(flow, nodeId, answer, note)
+  node.answeredIn = 'chat'
+  node.sentAt = node.answeredAt
   return node
 }
 
@@ -606,6 +623,8 @@ export function mergeKeepingAnswers(incoming, existing) {
       const askKept = old?.type === 'ask' && ['kind', 'title', 'yes', 'no'].every(k => same(old, n, k))
       const kept = askKept ? old : {}
       for (const key of ['answer', 'answeredAt', 'sentAt', 'deliveryError']) n[key] = kept[key] ?? null
+      if (kept.answeredIn) n.answeredIn = kept.answeredIn // answered in the chat: only from the stored file
+      else delete n.answeredIn
       n.note = askKept ? old.note ?? '' : ''
       // when it was asked: the stored time while it is the same question, else the agent's, else the time of this write
       n.at = askKept && isText(old.at) ? old.at : isText(n.at) ? n.at : now()

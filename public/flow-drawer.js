@@ -38,6 +38,7 @@
    */
   function deliveryState(n, now = Date.now()) {
     if (n.answer == null) return ''
+    if (n.answeredIn === 'chat') return 'chat' // the user answered in the agent's chat: nothing to deliver
     if (n.sentAt) return 'sent'
     if (n.deliveryError) return 'failed'
     const at = Date.parse(n.answeredAt || '')
@@ -46,6 +47,7 @@
   function delivery(n) {
     const retry = `<button type="button" class="link" data-retry="${esc(n.id)}">retry</button>`
     switch (deliveryState(n)) {
+      case 'chat': return '<span class="fl-sent" title="You answered this in the agent\'s chat">answered in chat</span>'
       case 'sent': return `<span class="fl-sent" title="Delivered ${esc(window.Shell.ago(n.sentAt))}"><dfn data-term="sent" tabindex="0">sent</dfn></span>`
       case 'failed': return `<span class="fl-undelivered" title="${esc(n.deliveryError)}"><dfn data-term="not delivered" tabindex="0">not delivered</dfn> · ${retry}</span>`
       case 'sending': return '<span class="fl-sending" title="The answer goes to the agent within about two minutes">sending…</span>'

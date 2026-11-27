@@ -78,7 +78,8 @@ function derivedStory(flow) {
     .sort((a, b) => String(b.answeredAt || '').localeCompare(String(a.answeredAt || '')))[0]
   const open = nodes.find(n => n?.type === 'ask' && n.answer == null)
   const you = answered
-    ? derivedLine('You', answered.kind === 'text' || !['yes', 'no'].includes(answered.answer)
+    ? derivedLine('You', answered.answeredIn === 'chat' ? `Answered in the chat: ${title(answered)}`
+      : answered.kind === 'text' || !['yes', 'no'].includes(answered.answer)
       ? `Replied to: ${title(answered)}`
       : `Answered ${answered.answer === 'yes' ? 'Yes' : 'No'} to: ${title(answered)}`)
     : null
