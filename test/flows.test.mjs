@@ -212,9 +212,9 @@ test('addEvidence pushes kind, ref, label, file and at', () => {
   assert.throws(() => F.addEvidence(f, 'n3', { kind: 'note', ref: 'x' }), /ask nodes take no evidence/)
 })
 
-test('applyAnswer on a yesno ask: refuses maybe, yes stamps answeredAt, null reopens and clears delivery', () => {
+test('applyAnswer on a yesno ask: refuses empty text, yes stamps answeredAt, null reopens and clears delivery', () => {
   const f = fx()
-  assert.throws(() => F.applyAnswer(f, 'n3', 'maybe'), /answer must be/)
+  assert.throws(() => F.applyAnswer(f, 'n3', '  '), /answer must be/)
   const n3 = F.applyAnswer(f, 'n3', 'yes', 'go ahead')
   assert.equal(n3.answer, 'yes')
   assert.equal(n3.note, 'go ahead')

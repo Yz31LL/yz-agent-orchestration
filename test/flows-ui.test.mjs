@@ -45,11 +45,12 @@ const answerAll = f => { for (const n of f.nodes) if (n.type === 'ask') Object.a
 
 // ═══ U1: the open flow's decision is answered on its Story line ═══
 
-test('U1: an open yes/no ask is a You · To decide line in the Story with Yes and No, even when the agent wrote the story', () => {
+test('U1: an open yes/no ask is a You · To decide line in the Story with its two choices named and your own words, even when the agent wrote the story', () => {
   const s = block(window.FlowOutput.html(fx(DARK)), 'Story')
   assert.match(s, /<li class="st-line st-ask"[^>]*><span class="st-who st-you">You<\/span><div class="st-text"><p class="st-did">To decide: Ship dark mode to dev now\?<\/p>/)
-  assert.match(s, /<button type="button" class="fl-yes" data-answer="yes" data-node="n3"[^>]*>Yes<\/button>/)
-  assert.match(s, /<button type="button" class="fl-no" data-answer="no" data-node="n3"[^>]*>No<\/button>/)
+  assert.match(s, /<button type="button" class="fl-yes" data-answer="yes" data-node="n3"[^>]*>Turn it on for everyone on dev\.<\/button>/)
+  assert.match(s, /<button type="button" class="fl-no" data-answer="no" data-node="n3"[^>]*>Keep it behind the toggle one more week\.<\/button>/)
+  assert.match(s, /<form class="fl-text fl-other" data-text="n3">/)
 })
 
 test('U1: a text ask gets the text field and Save; a derived story has ONE decision line, the answerable one', () => {

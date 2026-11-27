@@ -31,7 +31,8 @@
 .fl-ask-why.is-auto { color: var(--faint); font-style: italic; }
 svg.fc .fc-type rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 2; }
 svg.fc .fc-type text { font-size: 11px; font-weight: 600; fill: var(--muted); }
-.fl-yes, .fl-no { min-width: 52px; font-weight: 600; }
+.fl-yes, .fl-no { min-width: 52px; max-width: 100%; font-weight: 600; white-space: normal; text-align: center; }
+.fl-other { margin-top: 8px; } /* your own words, under a yes/no ask's two choices */
 .fl-yes:hover { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
 .fl-no:hover { border-color: var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
 .fl-text { display: flex; gap: 6px; flex-wrap: wrap; }

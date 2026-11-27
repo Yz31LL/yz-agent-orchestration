@@ -52,10 +52,13 @@
 
   /** An open ask (the model's story.asks) as a line of the story, its reason under it, answerable in place. */
   function askLine(flowId, n) {
+    const board = window.FlowBoard // buttons named by their meaning plus your own words, as in Human review
     const controls = n.kind === 'text'
       ? `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="story:${esc(flowId)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
-      : `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes || '')}">Yes</button>` +
-        `<button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no || '')}">No</button>`
+      : board?.choiceButtons
+        ? board.choiceButtons(n) + board.otherAnswer(n, `story:${flowId}:${n.id}:other`)
+        : `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes || '')}">Yes</button>` +
+          `<button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no || '')}">No</button>`
     return `<li class="st-line st-ask" data-ask="${esc(n.id)}"><span class="st-who st-you">You</span><div class="st-text">` +
       `<p class="st-did">To decide: ${chips(esc(n.title))}</p>${window.FlowDrawer.why(n.why, { cls: 'st-why' })}` +
       `<div class="st-answer">${controls}</div></div></li>`

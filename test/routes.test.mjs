@@ -123,10 +123,10 @@ test('POST answer null reopens the ask and queues nothing', async () => {
   assert.deepEqual(calls, [])
 })
 
-test('POST answer maybe is refused with 400 and the file is unchanged', async () => {
-  const r = await post('/api/flows/dark/answer', { node: 'n3', answer: 'maybe' })
+test('POST an empty answer is refused with 400 and the file is unchanged', async () => {
+  const r = await post('/api/flows/dark/answer', { node: 'n3', answer: ' ' })
   assert.equal(r.status, 400)
-  assert.match((await r.json()).error, /answer must be yes, no or null/)
+  assert.match((await r.json()).error, /answer must be yes, no, your own words or null/)
   assert.equal(node(F.readFlow('dark'), 'n3').answer, null)
   assert.deepEqual(calls, [])
 })

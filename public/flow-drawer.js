@@ -108,11 +108,13 @@
     if (n.kind === 'text') {
       return `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="drawer-text:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
     }
+    const board = window.FlowBoard // the buttons named by their meaning, and the own-words field, as in Human review
+    const buttons = board?.choiceButtons ? board.choiceButtons(n) : `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}">Yes</button>
+        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}">No</button>`
     return `${meanings}<div class="fl-yn">
-        <button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}">Yes</button>
-        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}">No</button>
+        ${buttons}
         <input data-note="${esc(n.id)}" data-key="drawer-note:${esc(n.id)}" placeholder="A note for the agent (optional)" aria-label="A note for the agent">
-      </div>`
+      </div>${board?.otherAnswer ? board.otherAnswer(n, `drawer-other:${n.id}`) : ''}`
   }
 
   // ─── evidence ───

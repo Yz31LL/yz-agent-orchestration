@@ -89,6 +89,8 @@
 .hr-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .hr-acts .fl-text { display: flex; gap: 6px; flex-wrap: wrap; }
 .hr-acts .fl-text input { min-width: 0; width: 220px; max-width: 100%; }
+.hr-acts .fl-other { flex-basis: 100%; } /* your own words: a line of its own under the two choices */
+.hr-acts .fl-other input { flex: 1 1 220px; width: auto; }
 
 /* the count on the rail's Agents entry */
 .hr-rail-count { position: absolute; top: -3px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;

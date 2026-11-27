@@ -554,8 +554,9 @@ export function applyAnswer(flow, nodeId, answer, note) {
   const node = findNode(flow, nodeId)
   if (node.type !== 'ask') throw new Error(`node ${nodeId} is not an ask`)
   if (answer !== null) {
-    if (node.kind === 'text' ? !isText(answer) : !['yes', 'no'].includes(answer)) {
-      throw new Error(`answer must be ${node.kind === 'text' ? 'non-empty text' : 'yes, no'} or null`)
+    // a yes/no ask also takes the user's own words: some questions fit neither button
+    if (!isText(answer)) {
+      throw new Error(`answer must be ${node.kind === 'text' ? 'non-empty text' : 'yes, no, your own words'} or null`)
     }
   }
   // ⚠️ How long a question has waited counts from when IT was asked (`at`, Human review and the pulse): an ask

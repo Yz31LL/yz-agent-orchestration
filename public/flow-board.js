@@ -157,9 +157,26 @@
     if (n.kind === 'text') {
       return `<form class="fl-text" data-text="${esc(n.id)}"><input name="answer" data-key="${esc(slot)}:${esc(f.id)}:${esc(n.id)}" placeholder="Your answer" required aria-label="Your answer"><button type="submit" class="primary">Save</button></form>`
     }
-    return `<button type="button" class="fl-yes" data-answer="yes" data-node="${esc(n.id)}" title="${esc(n.yes)}">Yes</button>
-        <button type="button" class="fl-no" data-answer="no" data-node="${esc(n.id)}" title="${esc(n.no)}">No</button>`
+    return `${choiceButtons(n)}
+        ${otherAnswer(n, `${slot}:${f.id}:${n.id}:other`)}`
   }
 
-  window.FlowBoard = { card, small, acts, askControls, groups, storyLine, state, clip, fit, shown }
+  const BUTTON_MAX = 40 // the longest button label; the full meaning stays in its title
+
+  /** A yes/no ask's two buttons, each named by what it means (an either-or question reads right), else Yes and No. */
+  function choiceButtons(n) {
+    const button = (value, word) => {
+      const meaning = String(n[value] ?? '').replace(/\s+/g, ' ').trim()
+      const label = meaning.length > BUTTON_MAX ? `${meaning.slice(0, BUTTON_MAX - 1).trimEnd()}…` : meaning || word
+      return `<button type="button" class="fl-${value}" data-answer="${value}" data-node="${esc(n.id)}" title="${esc(meaning ? `${word}: ${meaning}` : word)}">${esc(label)}</button>`
+    }
+    return `${button('yes', 'Yes')}
+        ${button('no', 'No')}`
+  }
+
+  /** The field under a yes/no ask for the user's own words, for a question neither button fits. */
+  const otherAnswer = (n, key) =>
+    `<form class="fl-text fl-other" data-text="${esc(n.id)}"><input name="answer" data-key="${esc(key)}" placeholder="Or write your own answer" required aria-label="Or write your own answer"><button type="submit">Save</button></form>`
+
+  window.FlowBoard = { card, small, acts, askControls, choiceButtons, otherAnswer, groups, storyLine, state, clip, fit, shown }
 })()

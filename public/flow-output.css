@@ -49,7 +49,6 @@
 /* an open decision: its Yes and No (or a text field) right under the question */
 .st-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .st-answer .fl-text { flex: 1 1 320px; max-width: 520px; }
-
 /* ─── Before → Now: a slim block right under the Story ─── */
 .ob-change { padding: 10px 22px; }
 .ob-change .cmp-strip { margin: 0; padding: 0; background: none; }

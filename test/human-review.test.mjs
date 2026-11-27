@@ -62,10 +62,10 @@ test('a chip shows only its kind; with none of it, one calm line; the default is
 test('a row: its title, kind, agent, how long it has waited and one reason; a question answered right here with the usual controls', () => {
   const H = load().HumanReview
   const h = H.html(DATA, 'all')
-  assert.match(text(h), /Add a &lt;dark&gt; mode toggle Question · Agent 3 · waiting 3h Deploy the fix to dev\? Yes No Why\? The test passes; dev is where QA can try it/)
+  assert.match(text(h), /Add a &lt;dark&gt; mode toggle Question · Agent 3 · waiting 3h Deploy the fix to dev\? Deploy it Leave it Save Why\? The test passes; dev is where QA can try it/)
   assert.match(text(h), /Production deploy needs its secrets By hand · 1 of 4 · Agent 2 · waiting 3h 1 of 4 done\. Next: Add the deploy token/)
   assert.match(text(h), /Deploy Blocked · Agent 1 · waiting 3h Blocked at: Deploy to stage/)
-  assert.match(H.rowHtml(ASK), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Deploy it">Yes<\/button>/)
+  assert.match(H.rowHtml(ASK), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Yes: Deploy it">Deploy it<\/button>/)
   assert.match(H.rowHtml({ ...ASK, ask: { ...ASK.ask, kind: 'text' } }), /<form class="fl-text" data-text="n3"><input name="answer" data-key="hr:dark:n3"/)
   assert.match(read('human-review.js'), /window\.FlowsView\?\.answer\(/, 'the one answer path')
 })

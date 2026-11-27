@@ -165,9 +165,9 @@ test('a live flow with by-hand steps not all ticked says yours by hand, after wa
 
 // ═══ the ask controls (the Human review box) ═══
 
-test('askControls: Yes and No on a yes or no ask, a text field with a kept value on a text one; no strip rows any more', () => {
+test('askControls: buttons named by what yes and no mean on a yes or no ask, a text field with a kept value on a text one; no strip rows any more', () => {
   const f = { id: 'dark-mode' }
-  assert.match(B.askControls(f, { id: 'n3', kind: 'yesno', yes: 'Ship <it>', no: 'Wait' }), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Ship &lt;it&gt;">Yes<\/button>/)
+  assert.match(B.askControls(f, { id: 'n3', kind: 'yesno', yes: 'Ship <it>', no: 'Wait' }), /<button type="button" class="fl-yes" data-answer="yes" data-node="n3" title="Yes: Ship &lt;it&gt;">Ship &lt;it&gt;<\/button>/)
   assert.match(B.askControls(f, { id: 'n4', kind: 'text' }, 'hr'), /<form class="fl-text" data-text="n4"><input name="answer" data-key="hr:dark-mode:n4"/)
   assert.equal(B.stripRows, undefined)
   assert.equal(B.stripRow, undefined)
