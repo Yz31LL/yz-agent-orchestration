@@ -3,7 +3,7 @@
 // changed through the inbox (insight-inbox.mjs).
 //
 //   makeHealRunner({ settings, facts, actions, inbox, now, stateFile, logFile, ... })
-//     -> { runOnce(), start(), view(), setSwitch(id, on), record(line), noteWork(what, ms) }
+//     -> { runOnce(force?), start(), view(), setSwitch(id, on), record(line), noteWork(what, ms) }
 //
 // THE CHECKS (CHECKS): each has an id, a plain name, what it looks at, how often it runs (most every minute; the
 // process list every 10 minutes, the disk every 30) and at most one repair.
@@ -17,6 +17,10 @@
 // - Every repair is one line of data/heal-log.jsonl (at, check, what it saw, what it did, the result), and one inbox
 //   item. A state change is one inbox item; a change TO failing also goes to the urgent path (insight.notifyMaster).
 // - After a repair the check looks again at once, so the page and the digest show the state it left.
+// - A PRESS on the Health page looks again at once at what it changed: runOnce(['deliveries']) after Release,
+//   runOnce(['refresh']) after Resume, runOnce('all') for Look now. A forced check runs even within its interval, and
+//   a press during a running pass waits for that pass and then looks again, so the answer is never the old state
+//   (QA, 2026-11-27: after Release the page showed the held deliveries and their button for up to a minute).
 // - New alerts and flows a gate stopped are put in the inbox too, each once (insight-inbox.mjs noteNew); the very first
 //   pass on a machine only remembers what is there, so the inbox does not start with every old alert.
 // - The server's own delay (the Server check) is measured here with monitorEventLoopDelay: each minute's 99th
@@ -77,6 +81,7 @@ export function makeHealRunner({
   const minutes = [] // the Server check's last few minutes
   let work = null // the slowest request or job of this minute
   let running = null
+  let forced = new Set() // check ids the next pass runs even within their interval ('all': every check)
   let passes = 0
   let lastAt = null
   const iso = () => new Date(now()).toISOString()
@@ -165,6 +170,8 @@ export function makeHealRunner({
   }
 
   async function pass() {
+    const force = forced
+    forced = new Set()
     const s = settings()
     const first = passes++ === 0
     if (!s.enabled) return
@@ -176,7 +183,8 @@ export function makeHealRunner({
         continue
       }
       const every = c.everyMs || everyMs
-      if (ranAt.has(c.id) && now() - ranAt.get(c.id) < every - 1000) continue
+      const due = force.has('all') || force.has(c.id) || !ranAt.has(c.id) || now() - ranAt.get(c.id) >= every - 1000
+      if (!due) continue
       ranAt.set(c.id, now())
       let res = await look(c, state)
       if (res.repair) res = await repairStep(c, res, s, state)
@@ -199,8 +207,15 @@ export function makeHealRunner({
     }
   }
 
-  /** One pass now; a pass already running is shared, never doubled. */
-  function runOnce() {
+  /**
+   * One pass now; a pass already running is shared, never doubled. `force` ('all' or check ids): those checks look
+   * again now even within their interval; a pass already running read its facts before the press, so the forced look
+   * waits for it and runs as the next pass.
+   */
+  function runOnce(force = null) {
+    const ids = force === 'all' ? ['all'] : Array.isArray(force) ? force : []
+    for (const id of ids) forced.add(id)
+    if (running && ids.length) return running.then(() => runOnce())
     if (!running) running = pass().catch(err => log(`heal: a pass failed: ${err?.message || err}`)).finally(() => { running = null })
     return running
   }

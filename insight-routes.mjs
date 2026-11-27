@@ -19,6 +19,10 @@
 //   POST /api/heal/stop     { pid, startedAt }  Stop a stray dashboard copy: heal-procs.mjs checks it again first
 //   POST /api/heal/run                          look now, then the view
 //
+// Each press answers with the watchdog's view AFTER it looked again at what the press changed (runOnce(ids): the
+// refresh after Resume, the deliveries after Release, the copies after Stop, the check switched on, every check for
+// Look now), so the page shows the new state and the button goes at once, not a minute later.
+//
 // ⚠️ Every POST needs the page's OWN Origin, present (local-origin.mjs): only the dashboard page decides, resumes,
 // releases or stops. Errors are { error: one plain sentence } with 400, 403, 404, 405, 409 or 413. Nothing here
 // writes config.json, runs a model or pushes; Release is the one press that may start a paid turn (the user's own).
@@ -130,12 +134,12 @@ export function makeInsightRoute({
   async function healPost(p, b) {
     if (!runner) return [404, { error: 'The watchdog is not running here.' }]
     if (p === '/api/heal/run') {
-      await runner.runOnce()
+      await runner.runOnce('all')
       return [200, runner.view()]
     }
     if (p === '/api/heal/switch') {
       if (typeof b.on !== 'boolean' || !runner.setSwitch(String(b.check || ''), b.on)) return [400, { error: 'Say which check to switch, and on or off.' }]
-      if (b.on) await runner.runOnce()
+      if (b.on) await runner.runOnce([String(b.check)])
       return [200, runner.view()]
     }
     if (p === '/api/heal/resume') {
@@ -144,7 +148,7 @@ export function makeInsightRoute({
       const was = sources.resume(id)
       updateHealState(s => ({ ...s, resumed: { ...s.resumed, [id]: new Date(now()).toISOString() } }), stateFile)
       runner.record({ check: 'refresh', name: 'Paid ticket refresh', saw: 'you pressed Resume', did: `Resumed the timer of ${id}${was ? '' : ' (it was not paused)'}.`, result: 'by you' })
-      await runner.runOnce()
+      await runner.runOnce(['refresh'])
       return [200, runner.view()]
     }
     if (p === '/api/heal/release') {
@@ -153,7 +157,7 @@ export function makeInsightRoute({
       const r = await relay.release(agent)
       if (!r.released) return [404, { error: `The deliveries to ${agent} are not held.` }]
       runner.record({ check: 'deliveries', name: 'Deliveries to agents', saw: 'you pressed Release', did: `Released ${r.items} held ${r.items === 1 ? 'delivery' : 'deliveries'} to ${agent}.`, result: 'by you' })
-      await runner.runOnce()
+      await runner.runOnce(['deliveries'])
       return [200, runner.view()]
     }
     if (p === '/api/heal/stop') {
@@ -161,6 +165,7 @@ export function makeInsightRoute({
       const r = await procs.stop(b.pid, typeof b.startedAt === 'string' ? b.startedAt : '')
       if (!r.ok) return [409, { error: r.error }]
       runner.record({ check: 'strays', name: 'Stray dashboard copies', saw: 'you pressed Stop', did: `Stopped the copy on ${r.port ? `port ${r.port}` : `process ${r.pid}`}${r.folder ? ` in ${r.folder}` : ''}.`, result: 'by you' })
+      await runner.runOnce(['strays'])
       return [200, { ok: true, ...runner.view() }]
     }
     return [404, { error: 'There is no such page here.' }]

@@ -301,3 +301,46 @@ test('a steady check (the server) shows a new state only once it held for 3 look
   assert.deepEqual(states, ['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'degraded'])
   assert.deepEqual(items.map(x => x.text.split(':')[0]), ['The dashboard server is degraded'])
 })
+
+// ═══ a press on the page looks again at once (QA, 2026-11-27: Release showed the old state for up to a minute) ═══
+
+test('runOnce(ids) looks again at once at the checks named, even within their interval; runOnce(all) at every check', async () => {
+  const relay = { held: true, reads: 0 }
+  // Release sends what was kept and clears the failures (relay.mjs release)
+  const deliveries = async () => (relay.reads++, { waiting: [], fails: relay.held ? [{ agent: 'Agent 1', count: 3, lastError: 'x', held: true, heldItems: 2 }] : [] })
+  let strays = 0
+  const h = runner({ deliveries, strays: async () => (strays++, { procs: [], selfPid: 1 }) })
+  await h.r.runOnce()
+  assert.deepEqual(one(h.r.view(), 'deliveries').extra.held, [{ agent: 'Agent 1', items: 2 }])
+  relay.held = false // the user pressed Release
+  await h.r.runOnce()
+  assert.equal(relay.reads, 1, 'a plain pass within the minute does not look again')
+  await h.r.runOnce(['deliveries'])
+  assert.equal(relay.reads, 2)
+  assert.deepEqual(one(h.r.view(), 'deliveries').extra.held, [], 'the Release button goes at once')
+  assert.equal(strays, 1, 'a check not named waits for its own interval (10 minutes for the process list)')
+  await h.r.runOnce('all')
+  assert.equal(strays, 2, 'Look now looks at every check')
+  assert.equal(relay.reads, 3)
+})
+
+test('a press while a pass runs waits for it, then looks again at the check it named: never the old state', async () => {
+  let release
+  const gate = new Promise(r => (release = r))
+  const held = { v: true, reads: 0 }
+  const deliveries = async () => {
+    held.reads++
+    const v = held.v // what the relay said when this read began
+    if (held.reads === 1) await gate // the minute pass is still reading when the user presses
+    return { waiting: [], fails: v ? [{ agent: 'Agent 1', count: 3, held: true, heldItems: 1 }] : [] }
+  }
+  const h = runner({ deliveries })
+  const minute = h.r.runOnce()
+  while (held.reads < 1) await new Promise(r => setTimeout(r, 1)) // the minute pass has begun reading the relay
+  held.v = false // and now the user presses Release
+  const press = h.r.runOnce(['deliveries'])
+  release()
+  await Promise.all([minute, press])
+  assert.equal(held.reads, 2)
+  assert.deepEqual(one(h.r.view(), 'deliveries').extra.held, [])
+})

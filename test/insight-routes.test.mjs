@@ -28,9 +28,9 @@ const FILE = path.join(TMP, 'suggestions.json')
 const STATE = path.join(TMP, 'heal-state.json')
 const GRAPH_CONFIG = { coordinatorLabel: 'Master', codingAgents: { Master: 'Master', a1: 'Agent 1' }, pipeline: { qa: 'QA' }, factory: { chat: { name: '' } } }
 
-const calls = { inbox: [], resume: [], release: [], stop: [], runs: 0, switches: [], records: [] }
+const calls = { inbox: [], resume: [], release: [], stop: [], runs: 0, forced: [], switches: [], records: [] }
 const view = () => ({ enabled: true, repairs: true, worst: 'failing', checks: [{ id: 'refresh', name: 'Paid ticket refresh', state: 'failing', text: 'Paused.' }, { id: 'loops', name: 'Background loops', state: 'degraded', text: 'Silent.' }], repairs24h: [{}], log: [] })
-const runner = { view, runOnce: async () => calls.runs++, setSwitch: (id, on) => (calls.switches.push([id, on]), id === 'refresh'), record: l => calls.records.push(l) }
+const runner = { view, runOnce: async force => (calls.runs++, calls.forced.push(force ?? null)), setSwitch: (id, on) => (calls.switches.push([id, on]), id === 'refresh'), record: l => calls.records.push(l) }
 let server
 let base
 let port
@@ -163,4 +163,19 @@ test('the watchdog: switch, Resume (kept so old turns are not held against it), 
   assert.equal(calls.runs, before + 1)
   assert.equal((await fetch(`${base}/api/heal`)).status, 200)
   assert.equal(fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null, configBefore)
+})
+
+test('each press looks again at once at what it changed, and answers with that fresh look (QA, 2026-11-27)', async () => {
+  const forced = async (p, body) => {
+    const before = calls.forced.length
+    const r = await post(p, body)
+    assert.equal(r.status, 200, `${p}: ${JSON.stringify(await r.clone().json())}`)
+    assert.ok(Array.isArray((await r.json()).checks), `${p} answers with the view`)
+    return calls.forced.slice(before)
+  }
+  assert.deepEqual(await forced('/api/heal/resume', { collection: 'prod' }), [['refresh']])
+  assert.deepEqual(await forced('/api/heal/release', { agent: 'Agent 1' }), [['deliveries']])
+  assert.deepEqual(await forced('/api/heal/stop', { pid: 7, startedAt: '2026-11-26T01:00:00Z' }), [['strays']])
+  assert.deepEqual(await forced('/api/heal/run', {}), ['all'])
+  assert.deepEqual(await forced('/api/heal/switch', { check: 'refresh', on: true }), [['refresh']])
 })
