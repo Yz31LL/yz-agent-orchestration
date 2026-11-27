@@ -120,7 +120,8 @@
 
   function checkCard(c, ui, now) {
     const st = c.state || 'ok'
-    const sw = `<label class="ins-switch"><input type="checkbox" data-heal-switch="${esc(c.id)}"${c.on !== false ? ' checked' : ''}${ui.busy ? ' disabled' : ''}> On</label>`
+    // the visible word is On; its name says WHICH check (QA, 2026-11-27: a screen reader heard nine switches all called On)
+    const sw = `<label class="ins-switch"><input type="checkbox" data-heal-switch="${esc(c.id)}" aria-label="Watch ${esc(c.name)}"${c.on !== false ? ' checked' : ''}${ui.busy ? ' disabled' : ''}> On</label>`
     const repair = c.repair ? `<p class="ins-repair"><b>Its one repair:</b> ${esc(c.repair)}</p>` : `<p class="ins-repair">${esc(REPORT_ONLY[c.id] || 'Report only.')}</p>`
     const would = c.would ? `<p class="ins-would">Repairs are off: it would have done this, and did nothing.</p>` : ''
     const last = c.lastRepair ? `<p class="ins-last">Last repair ${esc(whenText(c.lastRepair.at))}: ${esc(c.lastRepair.did)} <span class="ins-result">(${esc(c.lastRepair.result)})</span></p>` : ''
