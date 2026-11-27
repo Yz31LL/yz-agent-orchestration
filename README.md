@@ -2044,8 +2044,9 @@ improvements every time possible, self healing". Four parts, none of which runs 
   to an agent after 3 paid failures (no paid turn until **Release**; waiting for a session never pays anyway),
   **keep a copy** of a damaged store and rebuild it where the code can (the token index, the stand-up index, the
   alerts state; the lessons and the suggestions are copied and reported), **start a silent loop once more** (then
-  only reported). Stray copies are listed with port, age and folder and a **Stop** you press (checked again by its
-  command line and start time; never this server, never by itself). Disk, config, server and agents only report
+  only reported). Stray copies (a `.worktrees/<name>/server.mjs` only: the main checkout is the live dashboard and is
+  never listed) are listed with port, age and folder and a **Stop** you press (checked again by its command line and
+  start time, which the press must send; never this server, never by itself). Disk, config, server and agents only report
   (**Copy a nudge** copies a sentence; it sends nothing). Every repair is a line of `data/heal-log.jsonl` and shown
   on the page. `healing.enabled` and `healing.repairs` (both true by default) in config.json; with `repairs` false
   the watchdog only reports. `heal-checks.mjs`, `heal-reports.mjs`, `heal-runner.mjs`, `heal-repairs.mjs`,

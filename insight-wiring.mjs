@@ -19,7 +19,7 @@
 //   names a JSON file that stands in for the process list, and a Stop then only records; no real process is looked
 //   at or stopped. It is not a setting and is documented nowhere else.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,7 +31,7 @@ import { collections, historyOf, pause, readSource, refreshStatus, resume, valid
 import { DATA_DIR, listFlows, stoppedBy } from './flows.mjs'
 import { loopsView, restartLoop } from './heal-beats.mjs'
 import { configFacts, diskFacts, storeFacts } from './heal-facts.mjs'
-import { makeProcs } from './heal-procs.mjs'
+import { makeProcs, seededProcs } from './heal-procs.mjs'
 import { makeRepairs } from './heal-repairs.mjs'
 import { makeDelayMeter, makeHealRunner } from './heal-runner.mjs'
 import { HEAL_STATE_FILE, readHealState } from './heal-store.mjs'
@@ -77,7 +77,7 @@ const CONFIG_READERS = [
 function procsFor(here) {
   const seeded = process.env.FACTORY_TEST_PROCS
   if (!seeded) return makeProcs({ here })
-  return makeProcs({ here, platform: 'win32', exec: async () => ({ ok: true, out: readFileSync(seeded, 'utf8') }), kill: pid => console.log(`heal: FACTORY_TEST_PROCS is set, so process ${pid} was NOT stopped`) })
+  return seededProcs(seeded, { here })
 }
 
 export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenRoute, predictRoute, prListRoute, present, sessionNames = async () => new Map(), labelOf = n => n }) {

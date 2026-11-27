@@ -934,7 +934,7 @@ itself, each safe and reversible, and shows each in the log at the bottom:
 - a background job that went silent is **started once more**.
 
 Other dashboard copies left running for more than 6 hours are listed with a **Stop** button; nothing stops one by
-itself. The disk, config, server and agents checks only tell you (**Copy a nudge** copies a sentence for you to paste
+itself. Only copies in a `.worktrees` folder count: the main checkout is your live dashboard and is never listed. The disk, config, server and agents checks only tell you (**Copy a nudge** copies a sentence for you to paste
 into a stuck session). Switch any check off with its **On** box. In config.json, `healing.repairs: false` makes it
 report only, `healing.enabled: false` turns it off.
 

@@ -108,7 +108,7 @@
     }
     if (c.id === 'strays' && (x.strays || []).length) {
       return `<ul class="ins-rows">${x.strays.map(s => `<li><span>${s.port ? `Port ${esc(s.port)}` : 'No port'} · ${esc(dur(s.ageMs))} · ${esc(s.folder || 'folder not known')}</span>` +
-        (s.canStop ? `<button type="button" class="danger" data-heal-stop="${esc(s.pid)}" data-heal-started="${esc(s.startedAt || '')}"${busy ? ' disabled' : ''}>Stop</button>` : '<span class="ins-meta">Stop it in its own terminal.</span>') + '</li>').join('')}</ul>`
+        `<button type="button" class="danger" data-heal-stop="${esc(s.pid)}" data-heal-started="${esc(s.startedAt || '')}"${busy ? ' disabled' : ''}>Stop</button></li>`).join('')}</ul>`
     }
     if (c.id === 'agents' && (x.nudges || []).length) {
       return `<div class="ins-acts">${x.nudges.map((n, i) => `<button type="button" data-heal-nudge="${i}" title="Copies a sentence to paste into that session. It sends nothing.">Copy a nudge for ${esc(n.agent)}</button>`).join('')}</div>`

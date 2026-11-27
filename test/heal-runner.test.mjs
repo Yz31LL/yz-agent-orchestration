@@ -204,12 +204,12 @@ test('a loop silent for 5 times its interval is started once more, and only repo
 
 test('stray servers are listed with their port, age and folder, and the watchdog never stops one', async () => {
   const kills = []
-  const procs = [{ pid: 4242, port: 4497, startedAt: iso(NOW - 9 * 3_600_000), folder: 'C:/d/.worktrees/x', canStop: true }]
+  const procs = [{ pid: 4242, port: 4497, startedAt: iso(NOW - 9 * 3_600_000), folder: 'C:/d/.worktrees/x' }]
   const h = runner({ strays: async () => ({ procs, selfPid: 1 }) }, { actions: { ...makeRepairs({}), kill: pid => kills.push(pid) } })
   await h.r.runOnce()
   const c = one(h.r.view(), 'strays')
   assert.equal(c.state, 'degraded')
-  assert.deepEqual(c.extra.strays.map(s => [s.pid, s.port, s.folder, s.canStop]), [[4242, 4497, 'C:/d/.worktrees/x', true]])
+  assert.deepEqual(c.extra.strays.map(s => [s.pid, s.port, s.folder]), [[4242, 4497, 'C:/d/.worktrees/x']])
   assert.deepEqual(kills, [])
   assert.deepEqual(h.log(), [], 'no repair, so nothing in the repair log')
 })

@@ -5,9 +5,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { dashboardServers, mainRoot, makeProcs, parseListing, serverScript } from '../heal-procs.mjs'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { dashboardServers, mainRoot, makeProcs, parseListing, seededProcs, serverScript } from '../heal-procs.mjs'
 
 const HERE = 'C:\\Users\\me\\agent-dashboard\\.worktrees\\insight'
+const NOW = Date.parse('2026-11-26T12:00:00.000Z')
 const listing = (procs, ports = []) => JSON.stringify({ procs, ports })
 const P = (pid, CommandLine, Start = '2026-11-26T01:00:00.0000000Z') => ({ ProcessId: pid, CommandLine, Start })
 const LISTING = listing([
@@ -36,23 +41,24 @@ test('which processes are dashboard servers, with their folder, and which may be
   assert.equal(serverScript('node --test test/server.test.mjs'), null)
   assert.equal(mainRoot(HERE), 'C:/Users/me/agent-dashboard')
   assert.equal(mainRoot('C:\\Users\\me\\agent-dashboard'), 'C:/Users/me/agent-dashboard')
+  // ONLY a worktree's own copy is a dashboard copy (QA, 2026-11-27: a preview offered to stop the LIVE dashboard)
   const s = dashboardServers({ ...parseListing(LISTING), here: HERE })
-  assert.deepEqual(s.map(x => [x.pid, x.port, x.folder, x.canStop]), [
-    [100, 4317, 'C:/Users/me/agent-dashboard', true],
-    [101, 4497, 'C:/Users/me/agent-dashboard/.worktrees/phone pr', true],
-    [102, null, '', false], // relative: its folder is not in its command line
-    [103, null, 'C:/Users/me/other-app', false], // another app's server.mjs
-    [106, null, 'C:/Users/me/agent-dashboard/.worktrees/a/nested', false], // not a worktree's own folder
-  ])
+  assert.deepEqual(s.map(x => [x.pid, x.port, x.folder]), [[101, 4497, 'C:/Users/me/agent-dashboard/.worktrees/phone pr']])
+  // never listed: the main checkout (100, the live dashboard), a relative path (102: its folder is not in its command
+  // line, and it may be the live one), another app (103), a folder below a worktree (106).
+  // The same answer from the main checkout itself: its copies in .worktrees, never itself by its folder
+  const fromMain = dashboardServers({ ...parseListing(LISTING), here: 'C:\\Users\\me\\agent-dashboard' })
+  assert.deepEqual(fromMain.map(x => x.pid), [101])
 })
 
 test('stop: only on a fresh listing, only a copy of this repo or a worktree, the same start time, never this server', async () => {
   const killed = []
-  const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 100 })
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: LISTING }), kill: pid => killed.push(pid), here: HERE, selfPid: 100, now: () => NOW })
   const AT = '2026-11-26T01:00:00.0000000Z'
   assert.match((await procs.stop(100, AT)).error, /That is this dashboard/)
-  assert.match((await procs.stop(103, AT)).error, /not a copy of this dashboard/)
-  assert.match((await procs.stop(102, AT)).error, /not a copy of this dashboard/)
+  assert.match((await procs.stop(103, AT)).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(102, AT)).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(106, AT)).error, /not a copy of this dashboard in a worktree/)
   assert.match((await procs.stop(999, AT)).error, /not running any more/)
   assert.match((await procs.stop('x', AT)).error, /Say which copy/)
   assert.match((await procs.stop(101, '2026-11-26T09:00:00.0000000Z')).error, /now belongs to another process/)
@@ -83,4 +89,34 @@ test('servers(): a failed or missing listing is no list with the reason; off Win
   const off = makeProcs({ exec: async () => ({ ok: false, err: 'x' }), kill: p => killed.push(p), here: HERE })
   assert.match((await off.stop(101, '2026-11-25T20:00:00.0000000Z')).error, /could not be listed, so nothing was stopped/)
   assert.deepEqual(killed, [])
+})
+
+test('a preview never offers to stop the live dashboard: from a worktree the main checkout is not listed nor stopped', async () => {
+  // the live dashboard runs from the main checkout; this preview runs from .worktrees/insight (QA, 2026-11-27)
+  const live = listing([
+    P(200, 'node C:\\Users\\me\\agent-dashboard\\server.mjs', '2026-11-20T08:00:00.0000000Z'),
+    P(201, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\insight\\server.mjs', '2026-11-26T11:00:00.0000000Z'),
+    P(202, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\old\\server.mjs', '2026-11-25T08:00:00.0000000Z'),
+    P(203, 'node C:\\Users\\me\\agent-dashboard\\.worktrees\\young\\server.mjs', '2026-11-26T10:00:00.0000000Z'),
+  ], [{ LocalPort: 4317, OwningProcess: 200 }, { LocalPort: 4497, OwningProcess: 201 }, { LocalPort: 4498, OwningProcess: 202 }])
+  const killed = []
+  const procs = makeProcs({ exec: async () => ({ ok: true, out: live }), kill: pid => killed.push(pid), here: HERE, selfPid: 201, now: () => NOW })
+  const { procs: listed } = await procs.servers()
+  assert.deepEqual(listed.map(x => x.pid), [201, 202, 203], 'the worktree copies only; the main checkout is never one')
+  assert.match((await procs.stop(200, '2026-11-20T08:00:00.0000000Z')).error, /not a copy of this dashboard in a worktree/)
+  assert.match((await procs.stop(203, '2026-11-26T10:00:00.0000000Z')).error, /less than 6 hours/)
+  assert.deepEqual(killed, [])
+  assert.equal((await procs.stop(202, '2026-11-25T08:00:00.0000000Z')).ok, true)
+  assert.deepEqual(killed, [202])
+})
+
+test('FACTORY_TEST_PROCS: a preview reads its seeded list, never the real one, and its Stop only records', async () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'heal-procs-seed-')), 'procs.json')
+  fs.writeFileSync(file, LISTING)
+  const said = []
+  const procs = seededProcs(file, { here: HERE, say: t => said.push(t), now: () => NOW, selfPid: 1 })
+  assert.deepEqual((await procs.servers()).procs.map(x => x.pid), [101])
+  assert.equal((await procs.stop(101, '2026-11-25T20:00:00.0000000Z')).ok, true)
+  assert.match(said.join(' '), /process 101 was NOT stopped/)
+  fs.rmSync(path.dirname(file), { recursive: true, force: true })
 })

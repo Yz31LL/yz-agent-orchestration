@@ -81,7 +81,7 @@ const VIEW = {
   checks: [
     { id: 'loops', name: 'Background loops', looksAt: 'Does each still run?', on: true, state: 'ok', text: 'Every loop ran in time.', repair: 'Start a silent background loop once more.', lastRepair: null, extra: null },
     { id: 'refresh', name: 'Paid ticket refresh', looksAt: 'Whether it works.', on: true, state: 'failing', text: 'The ticket refresh failed 3 times and is paused. It has cost $52.32 since it last worked.', repair: 'Pause the timer.', lastRepair: { at: '2026-11-26T11:00:00.000Z', did: 'Paused the timer of Production checklist.', result: 'done' }, extra: { collections: [{ id: 'prod', name: 'Production checklist', paused: true }] } },
-    { id: 'strays', name: 'Stray dashboard copies', looksAt: 'Copies.', on: true, state: 'degraded', text: '2 copies.', repair: null, extra: { strays: [{ pid: 11, port: 4497, ageMs: 9 * 3_600_000, folder: 'C:/d/.worktrees/x', canStop: true, startedAt: '2026-11-26T01:00:00Z' }, { pid: 12, port: null, ageMs: 7 * 3_600_000, folder: '', canStop: false }] } },
+    { id: 'strays', name: 'Stray dashboard copies', looksAt: 'Copies.', on: true, state: 'degraded', text: '2 copies.', repair: null, extra: { strays: [{ pid: 11, port: 4497, ageMs: 9 * 3_600_000, folder: 'C:/d/.worktrees/x', startedAt: '2026-11-26T01:00:00Z' }, { pid: 12, port: null, ageMs: 7 * 3_600_000, folder: 'C:/d/.worktrees/y', startedAt: '2026-11-26T05:00:00Z' }] } },
     { id: 'deliveries', name: 'Deliveries to agents', looksAt: 'Waiting.', on: true, state: 'failing', text: 'Held.', repair: 'Hold.', extra: { held: [{ agent: 'Agent 1', items: 2 }] } },
     { id: 'agents', name: 'Agents', looksAt: 'Hung.', on: true, state: 'degraded', text: 'Master has no session open.', repair: null, extra: { nudges: [{ agent: 'Master', text: 'Read the digest.' }] } },
     { id: 'disk', name: 'Disk and data growth', looksAt: 'Sizes.', on: false, state: 'off', text: 'Switched off.', repair: null },
@@ -100,8 +100,8 @@ test('Health: failing first, each with its state, what it looks at, its one repa
   assert.match(html, /Last repair 26 Nov, \d\d:00: Paused the timer of Production checklist\. <span class="ins-result">\(done\)<\/span>/)
   assert.match(html, /data-heal-release="Agent 1"[^>]*>Release Agent 1</)
   assert.match(html, /Port 4497 · 9 h · C:\/d\/\.worktrees\/x<\/span><button type="button" class="danger" data-heal-stop="11" data-heal-started="2026-11-26T01:00:00Z"/)
-  assert.match(html, /No port · 7 h · folder not known<\/span><span class="ins-meta">Stop it in its own terminal\.<\/span>/)
-  assert.equal((html.match(/data-heal-stop=/g) || []).length, 1, 'no Stop for a copy whose folder is not known')
+  assert.match(html, /No port · 7 h · C:\/d\/\.worktrees\/y<\/span><button type="button" class="danger" data-heal-stop="12" data-heal-started="2026-11-26T05:00:00Z"/)
+  assert.equal((html.match(/data-heal-stop=/g) || []).length, 2, 'every copy listed is a worktree copy, so each has its Stop')
   assert.match(html, /Report only: a copy may be a preview someone is looking at, so only you stop one\./)
   assert.match(html, /data-heal-nudge="0" title="Copies a sentence to paste into that session\. It sends nothing\.">Copy a nudge for Master</)
   assert.match(html, /<input type="checkbox" data-heal-switch="disk" aria-label="Watch Disk and data growth"> On<\/label>/)

@@ -1,10 +1,11 @@
 // The watchdog's REPORT-ONLY checks, PURE like heal-checks.mjs: same answer shape ({ state, text, saw, extra? }), and
 // never a repair. What each one would need to repair is not safe, local and reversible, so it is the user's:
 //
-//   straysCheck   dashboard copies (this repo's server.mjs, or a worktree's) left running for more than 6 hours.
+//   straysCheck   dashboard copies (a worktree's server.mjs; never the main checkout's, the live one) left running
+//                 for more than 6 hours.
 //                 NO automatic stop: a copy may be a preview someone is looking at. The page lists each with its port,
 //                 age and folder, and a Stop button the USER presses (heal-procs.mjs stops it by its pid, after
-//                 checking its command line again). A copy whose folder cannot be read gets no button.
+//                 checking its command line and start time again).
 //   diskCheck     spend.jsonl, the logs, the evidence folder and the token index past sensible sizes, with the
 //                 biggest items. Nothing is deleted: what to keep is the user's call.
 //   configCheck   config.json that does not parse, and every setting that was ignored with a warning at start (until
@@ -44,13 +45,13 @@ const ago = ms => {
 // ═══ 5. Stray preview servers ═══
 
 /**
- * `procs`: the dashboard servers running on this computer (heal-procs.mjs), [{ pid, port, startedAt, folder, canStop }],
+ * `procs`: the dashboard copies running on this computer (heal-procs.mjs), [{ pid, port, startedAt, folder }],
  * or null with `error` when the list could not be read. This server (`selfPid`) is never a stray.
  */
 export function straysCheck({ procs = null, error = '', selfPid, now }) {
   if (!Array.isArray(procs)) return { state: 'ok', text: `The list of running dashboards could not be read this time${error ? `: ${error}` : ''}.`, saw: 'no process list', extra: { strays: [] } }
   const strays = procs.filter(p => p.pid !== selfPid && timeOf(p.startedAt) !== null && now - timeOf(p.startedAt) > STRAY_AGE_MS)
-    .map(p => ({ pid: p.pid, port: p.port ?? null, startedAt: p.startedAt, ageMs: now - timeOf(p.startedAt), folder: p.folder || '', canStop: !!p.canStop }))
+    .map(p => ({ pid: p.pid, port: p.port ?? null, startedAt: p.startedAt, ageMs: now - timeOf(p.startedAt), folder: p.folder || '' }))
     .sort((a, b) => b.ageMs - a.ageMs)
   const where = s => `${s.port ? `port ${s.port}` : 'no port'}, ${ago(s.ageMs)}${s.folder ? `, in ${s.folder}` : ''}`
   return {

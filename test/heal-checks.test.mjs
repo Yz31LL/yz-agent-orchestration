@@ -141,14 +141,14 @@ test('the fixed list of repairs is exactly four, each said in a plain sentence',
 
 test('strays: never this server; only copies older than 6 hours; degraded with their port, age and folder; no repair', () => {
   const procs = [
-    { pid: 10, port: 4317, startedAt: iso(NOW - 30 * H), folder: 'C:/x/agent-dashboard', canStop: true },
-    { pid: 11, port: 4497, startedAt: iso(NOW - 9 * H), folder: 'C:/x/agent-dashboard/.worktrees/a', canStop: true },
-    { pid: 12, port: 4498, startedAt: iso(NOW - H), folder: '', canStop: false },
+    { pid: 10, port: 4497, startedAt: iso(NOW - 30 * H), folder: 'C:/x/agent-dashboard/.worktrees/me' },
+    { pid: 11, port: 4498, startedAt: iso(NOW - 9 * H), folder: 'C:/x/agent-dashboard/.worktrees/a' },
+    { pid: 12, port: 4499, startedAt: iso(NOW - H), folder: 'C:/x/agent-dashboard/.worktrees/b' },
   ]
   const r = straysCheck({ procs, selfPid: 10, now: NOW })
   assert.equal(r.state, 'degraded')
   assert.deepEqual(r.extra.strays.map(s => s.pid), [11])
-  assert.match(r.text, /1 other dashboard copy has run for more than 6 hours: port 4497, 9 h, in C:\/x\/agent-dashboard\/\.worktrees\/a\. Nothing stops it by itself/)
+  assert.match(r.text, /1 other dashboard copy has run for more than 6 hours: port 4498, 9 h, in C:\/x\/agent-dashboard\/\.worktrees\/a\. Nothing stops it by itself/)
   assert.equal(r.repair, undefined)
   assert.equal(straysCheck({ procs: [procs[0], procs[2]], selfPid: 10, now: NOW }).state, 'ok')
   const none = straysCheck({ procs: null, error: 'powershell is missing', selfPid: 10, now: NOW })
