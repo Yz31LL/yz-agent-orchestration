@@ -127,12 +127,12 @@
 
   const DID = { comment: 'commented', approved: 'approved', changes: 'asked for changes', commented: 'reviewed', dismissed: 'review dismissed' }
 
-  function conversationBlock(c = {}) {
+  function conversationBlock(c = {}, nowMs = Date.now()) {
     const items = list(c.items)
     if (!items.length) return '<h3 class="ph-h">Conversation</h3><p class="ph-faint">No comments yet.</p>'
     const rows = items.map(i => {
       const did = i?.kind === 'review' ? own(DID, i.state) || 'reviewed' : 'commented'
-      const head = [i?.author || 'Someone', S.when(i?.at), did].filter(Boolean)
+      const head = [i?.author || 'Someone', S.when(i?.at, nowMs), did].filter(Boolean)
       const body = typeof i?.text === 'string' && i.text.trim() ? `<div class="ph-md">${X.render(i.text)}</div>` : ''
       return `<li><p class="ph-pr-who"><b>${esc(head[0])}</b>${head.slice(1).map(h => ` · ${esc(h)}`).join('')}</p>${body}` +
         (i?.cut ? '<p class="ph-faint">Cut at 2,000 characters.</p>' : '') + '</li>'
@@ -167,7 +167,7 @@
       `<p class="ph-pr-meta"><span class="ph-pr-state is-${state}">${STATE[state]}</span>${branch}</p>` +
       `<p class="ph-faint">${esc(by)}${by && read ? ' · ' : ''}${esc(read)} <button type="button" class="link ph-pr-refresh" data-ph-pr-refresh>Refresh</button></p>` +
       (note ? `<p class="ph-note ph-pr-problem" role="status">${esc(note)}</p>` : '') +
-      checksBlock(d.checks) + reviewBlock(d.review) + bodyBlock(d.body, ui.bodyOpen) + filesBlock(d.files, open) + conversationBlock(d.conversation) +
+      checksBlock(d.checks) + reviewBlock(d.review) + bodyBlock(d.body, ui.bodyOpen) + filesBlock(d.files, open) + conversationBlock(d.conversation, nowMs) +
       foot(d.url, d.flow?.id ?? pr.flow),
       'data-ph-pr-close', ' is-pr')
   }
