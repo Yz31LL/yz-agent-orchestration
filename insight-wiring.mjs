@@ -169,7 +169,7 @@ export function makeInsightServer({ port, cachedStatus, getStatus, relay, tokenR
   }
 
   const route = makeInsightRoute({
-    port, providers, runner, relay, procs, sources: { resume }, stateFile: HEAL_STATE_FILE,
+    port, providers, runner, relay, procs, sources: { resume, nameOf: id => collections().find(c => c.id === id)?.name || null }, stateFile: HEAL_STATE_FILE,
     agents: () => agentLabels(graph()), learnDays: learnSettings(CONFIG.learn, () => {}).verdictAfterDays,
   })
   return { route, start: () => runner.start(), noteWork: (what, ms) => runner.noteWork(what, ms) }

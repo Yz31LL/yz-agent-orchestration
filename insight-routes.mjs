@@ -68,7 +68,7 @@ async function readBody(req) {
 }
 
 /**
- * `deps`: { port, providers (insight-gather.mjs), runner (heal-runner.mjs), relay, sources ({ resume, collections }),
+ * `deps`: { port, providers (insight-gather.mjs), runner (heal-runner.mjs), relay, sources ({ resume, nameOf }),
  * procs (heal-procs.mjs), agents() (the graph's agent labels), learnDays (the verdict wait), stateFile, file, now,
  * rulesPut, readRulesFn, inbox(item) }.
  */
@@ -149,7 +149,9 @@ export function makeInsightRoute({
       if (!/^[A-Za-z0-9_-]{1,60}$/.test(id) || !sources) return [400, { error: 'Say which ticket refresh to resume.' }]
       const was = sources.resume(id)
       updateHealState(s => ({ ...s, resumed: { ...s.resumed, [id]: new Date(now()).toISOString() } }), stateFile)
-      runner.record({ check: 'refresh', name: 'Paid ticket refresh', saw: 'you pressed Resume', did: `Resumed the timer of ${id}${was ? '' : ' (it was not paused)'}.`, result: 'by you' })
+      // by its name, as the pause line names it ("Paused the timer of Production checklist")
+      const name = sources.nameOf?.(id) || id
+      runner.record({ check: 'refresh', name: 'Paid ticket refresh', saw: 'you pressed Resume', did: `Resumed the timer of ${name}${was ? '' : ' (it was not paused)'}.`, result: 'by you' })
       await runner.runOnce(['refresh'])
       return [200, runner.view()]
     }

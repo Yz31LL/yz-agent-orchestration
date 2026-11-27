@@ -46,7 +46,7 @@ before(async () => {
     port, file: FILE, stateFile: STATE, now: () => NOW, runner, agents: () => ['Master', 'Agent 1', 'QA'], learnDays: 14,
     providers: { graph: () => ({ nodes: [{ id: 'm', kind: 'agent', label: 'Master', role: 'coordinator' }], edges: [] }), suggestions: () => readSuggestions(FILE), inbox: () => ({ items: [], readAt: null }) },
     relay: { release: async a => (calls.release.push(a), a === 'Agent 1' ? { released: true, items: 2 } : { released: false, items: 0 }) },
-    sources: { resume: id => (calls.resume.push(id), true) },
+    sources: { resume: id => (calls.resume.push(id), true), nameOf: id => (id === 'prod' ? 'Production checklist' : null) },
     procs: { stop: async (pid, at) => (calls.stop.push([pid, at]), pid === 7 ? { ok: true, pid: 7, port: 4497, folder: 'C:/d/.worktrees/x' } : { ok: false, error: 'That copy is not running any more.' }) },
     // the real rules path, on the temp folder, with the test's own graph
     rulesPut: (label, b, headers, opts) => rulesPut(label, b, headers, { ...opts, config: GRAPH_CONFIG, file: RULES_FILE, logFile: RULES_LOG, onChange: () => {} }),
@@ -147,6 +147,8 @@ test('the watchdog: switch, Resume (kept so old turns are not held against it), 
   assert.deepEqual(calls.resume, ['prod'])
   assert.equal(readHealState(STATE).resumed.prod, new Date(NOW).toISOString())
   assert.equal(calls.records.at(-1).result, 'by you')
+  // by its name, as the pause line names it (QA, 2026-11-27: it named the id)
+  assert.equal(calls.records.at(-1).did, 'Resumed the timer of Production checklist.')
   assert.equal((await post('/api/heal/resume', { collection: '../x' })).status, 400)
   assert.equal((await post('/api/heal/release', { agent: 'Agent 1' })).status, 200)
   assert.match(calls.records.at(-1).did, /Released 2 held deliveries to Agent 1\./)
