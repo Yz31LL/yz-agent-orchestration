@@ -166,3 +166,20 @@ test('settings: healing and insight blocks with their defaults, and a wrong valu
   assert.match(warns[0], /healing\.enabled/)
   assert.match(warns[2], /notifyMaster/)
 })
+
+test('a near-duplicate with --target left out matches every target: a rejected idea cannot come back without one', () => {
+  // QA, 2026-11-27: leaving out --target got past the duplicate check
+  const f = file()
+  const first = S.suggest(GOOD, opts(), f).suggestion
+  assert.equal(S.decide(first.id, { do: 'reject', reason: 'QA runs it anyway.' }, { now: NOW + 1000 }, f).error, undefined)
+  const bare = S.suggest({ ...GOOD, kind: 'process', target: '', text: 'Agent 1 runs the full test suite before handing over to QA.' }, opts(), f)
+  assert.match(bare.error, /rejected/)
+  assert.equal(bare.earlier, first.id)
+  // and the other way round: an open one with no target is matched by the same idea for any target
+  const g = file()
+  const open = S.suggest({ ...GOOD, kind: 'process', target: '' }, opts(), g).suggestion
+  const aimed = S.suggest({ ...GOOD, text: 'Agent 1 should run the whole test suite before it hands to QA.' }, opts(), g)
+  assert.equal(aimed.earlier, open.id)
+  // a different idea with no target still passes
+  assert.equal(S.suggest({ ...GOOD, kind: 'process', target: '', text: 'Name the ticket in every commit subject.' }, opts(), f).error, undefined)
+})

@@ -152,7 +152,11 @@ function check(input, { targets = [], flowIds = new Set() } = {}) {
   return { kind, target, text, why, effort }
 }
 
-const sameTarget = (a, b) => a.toLowerCase() === b.toLowerCase()
+/**
+ * Whether two suggestions are about the same thing: the same target, or either one with NO target, which is about
+ * every target (QA, 2026-11-27: leaving out --target let a rejected idea come back).
+ */
+const sameTarget = (a, b) => !a || !b || a.toLowerCase() === b.toLowerCase()
 
 /**
  * A new suggestion. `opts`: { by, coordinator?, now, newId, targets (the agent labels), flowIds (the flow ids the
